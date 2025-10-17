@@ -1,0 +1,45 @@
+# Qwen3 0.6B with LoRA fine-tuning
+# Smallest Qwen3 model - perfect for quick testing and iteration
+# Trains in minutes on a single GPU
+
+model:
+  model_name: "Qwen/Qwen3-0.6B"
+  model_max_length: 32768  # Qwen3 native context length
+  dtype: "bfloat16"
+  attn_implementation: "flash_attention_2"  # Requires flash-attn
+  use_cache: false
+
+data:
+  train_dataset:
+    dataset_name: "yahma/alpaca-cleaned"
+    split: "train[:2000]"  # Use 2000 examples for quick testing
+  target_column: "text"
+  template: "qwen"  # Qwen-specific prompt format
+
+training:
+  trainer_type: "sft"
+  per_device_train_batch_size: 8
+  gradient_accumulation_steps: 8  # Effective batch size: 8 * 8 = 64
+  learning_rate: 2.0e-04
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  max_steps: 200  # Quick test - ~10-15 minutes
+  save_steps: 100
+  logging_steps: 10
+  save_total_limit: 2
+  output_dir: "./tune/results/local/qwen3_0.6b_lora_test"
+  bf16: true
+  gradient_checkpointing: true
+  optim: "adamw_torch_fused"
+
+  # Logging
+  report_to: "none"  # Change to "wandb" if you want W&B logging
+
+peft:
+  type: "lora"
+  lora_r: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+  lora_target_modules: ["q_proj", "v_proj", "k_proj", "o_proj"]
+  bias: "none"
+  task_type: "CAUSAL_LM"

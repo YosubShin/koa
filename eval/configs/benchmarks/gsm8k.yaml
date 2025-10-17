@@ -17,4 +17,4 @@ tasks:
   - backend: "lm_harness"
     task: "gsm8k"
     num_fewshot: 8  # 8-shot evaluation (standard for GSM8K)
-    output_path: "./eval_results/gsm8k"
+    output_path: "./eval/results/local/gsm8k"

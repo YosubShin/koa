@@ -42,7 +42,7 @@ class EvalConfig:
     generation_max_new_tokens: int = 128
     generation_temperature: float = 0.1
     limit: Optional[int] = None
-    output_dir: str = "./eval_results/qwen3_vl_m2sv"
+    output_dir: str = "./eval/results/qwen3_vl_m2sv"
     save_predictions: bool = True
 
 
@@ -64,7 +64,7 @@ def load_config(path: str) -> EvalConfig:
         generation_max_new_tokens=generation_cfg.get("max_new_tokens", 128),
         generation_temperature=generation_cfg.get("temperature", 0.1),
         limit=generation_cfg.get("limit"),
-        output_dir=output_cfg.get("dir", "./eval_results/qwen3_vl_m2sv"),
+        output_dir=output_cfg.get("dir", "./eval/results/qwen3_vl_m2sv"),
         save_predictions=output_cfg.get("save_predictions", True),
     )
     return cfg
@@ -276,12 +276,18 @@ def evaluate(cfg: EvalConfig) -> Dict[str, Any]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate Qwen3-VL models.")
     parser.add_argument("-c", "--config", required=True, help="Path to config YAML file.")
+    parser.add_argument("--output-dir", help="Override output directory from config.")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     cfg = load_config(args.config)
+
+    # Apply CLI overrides
+    if args.output_dir:
+        cfg.output_dir = args.output_dir
+
     evaluate(cfg)
 
 

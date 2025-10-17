@@ -24,11 +24,14 @@ python eval/evaluate.py --config eval/configs/quickstart.yaml
 ### 3. Submit to KOA
 
 ```bash
-# Quick test evaluation
-koa-ml submit jobs/eval_quickstart.slurm
+# Quick test evaluation (Qwen3 0.6B)
+koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
 
-# Full MMLU evaluation
-koa-ml submit jobs/eval_mmlu.slurm
+# Full evaluation (Qwen3 8B)
+koa-ml submit eval/scripts/qwen3/eval_qwen3_8b_full.slurm
+
+# Multimodal evaluation (Qwen3-VL)
+koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv.slurm
 ```
 
 ## Available Benchmarks
@@ -71,18 +74,18 @@ All benchmark configs are in `eval/configs/benchmarks/`:
 - **Use case**: Scientific reasoning
 
 ### Quickstart (Testing)
-- **File**: [quickstart.yaml](configs/quickstart.yaml)
-- **What it tests**: Single MMLU subtask with SmolLM
+- **File**: [qwen3_quickstart.yaml](configs/qwen3_quickstart.yaml)
+- **What it tests**: Single MMLU subtask with Qwen3 0.6B
 - **Time**: ~5 minutes
 - **Use case**: Pipeline validation
 
 ### Vision-Language
 - **Qwen3-VL on M2SV**
   - **Config**: [eval/configs/qwen3_vl_m2sv.yaml](configs/qwen3_vl_m2sv.yaml)
-  - **Job**: [jobs/eval_qwen3_vl_m2sv.slurm](../jobs/eval_qwen3_vl_m2sv.slurm)
+  - **Job**: [eval/scripts/qwen3/eval_qwen3_vl_m2sv.slurm](scripts/qwen3/eval_qwen3_vl_m2sv.slurm)
   - **What it tests**: Scene + map comprehension from the M2SV dataset
   - **Time**: ~4 hours (4B model, batch size 1)
-  - **Output**: Predictions & summary under `eval_results/qwen3_vl_m2sv/`
+  - **Output**: Predictions & summary under `eval/results/{job_id}/`
 
 ## Config Structure
 
@@ -91,9 +94,9 @@ Each benchmark config has 3 sections:
 ### 1. Model Section
 ```yaml
 model:
-  model_name: "meta-llama/Llama-3.1-8B-Instruct"
+  model_name: "Qwen/Qwen3-8B"
   # Or evaluate your fine-tuned model:
-  # model_name: "./output/llama8b_lora"
+  # model_name: "./tune/results/123456"
   model_max_length: 2048
   dtype: "bfloat16"
   attn_implementation: "flash_attention_2"
@@ -113,7 +116,7 @@ tasks:
   - backend: "lm_harness"
     task: "mmlu"
     num_fewshot: 5
-    output_path: "./eval_results/mmlu"
+    output_path: "./eval/results/mmlu"
 ```
 
 ## Evaluating Your Fine-Tuned Models
@@ -122,22 +125,22 @@ tasks:
 
 ```yaml
 model:
-  model_name: "./output/llama8b_lora"  # Path to your checkpoint
+  model_name: "./tune/results/123456"  # Path to your checkpoint
 ```
 
 ### Option 2: Use CLI override
 
 ```bash
 python eval/evaluate.py \
-  --config eval/configs/benchmarks/mmlu.yaml \
-  --model ./output/llama8b_lora
+  --config eval/configs/qwen3_8b_full_eval.yaml \
+  --model ./tune/results/123456
 ```
 
 ### Option 3: Direct CLI evaluation
 
 ```bash
 python eval/evaluate.py \
-  --model ./output/llama8b_lora \
+  --model ./tune/results/123456 \
   --tasks mmlu,gsm8k,hellaswag \
   --num_fewshot 5
 ```
@@ -166,7 +169,7 @@ python eval/evaluate.py --config <config_file> --output_path ./my_results
 
 ## Understanding Results
 
-Results are saved as JSON files in `eval_results/`:
+Results are saved in job-specific directories under `eval/results/{job_id}/`:
 
 ```json
 {
@@ -209,8 +212,10 @@ Typical scores for reference (approximate):
 # Check job status
 koa-ml jobs
 
-# View job output
-# SSH to KOA and check logs/eval-*-<job_id>.out
+# View job output and results
+# SSH to KOA and check:
+# - eval/results/{job_id}/job.out for logs
+# - eval/results/{job_id}/ for all results files
 ```
 
 ## Comparing Models
@@ -220,15 +225,15 @@ koa-ml jobs
 ```bash
 # Evaluate base model
 python eval/evaluate.py \
-  --model meta-llama/Llama-3.1-8B-Instruct \
+  --model Qwen/Qwen3-8B \
   --tasks mmlu,gsm8k \
-  --output_path ./results/base_model
+  --output_path ./eval/results/base_model
 
 # Evaluate fine-tuned model
 python eval/evaluate.py \
-  --model ./output/llama8b_lora \
+  --model ./tune/results/123456 \
   --tasks mmlu,gsm8k \
-  --output_path ./results/finetuned_model
+  --output_path ./eval/results/finetuned_model
 
 # Compare results manually or with a script
 ```
@@ -273,7 +278,7 @@ tasks:
   - backend: "lm_harness"
     task: "my_custom_task"
     num_fewshot: 5
-    output_path: "./eval_results/my_benchmark"
+    output_path: "./eval/results/my_benchmark"
 ```
 
 ## Tips for Evaluation
@@ -320,19 +325,20 @@ python -c "from lm_eval import tasks; print([t for t in tasks.ALL_TASKS if 'mmlu
 
 Copy an existing job script:
 ```bash
-cp jobs/eval_mmlu.slurm jobs/eval_custom.slurm
+cp eval/scripts/qwen3/eval_qwen3_8b_full.slurm eval/scripts/qwen3/eval_custom.slurm
 ```
 
-Edit the evaluation command:
+Edit the evaluation command to use your model:
 ```bash
 python eval/evaluate.py \
-    --model ./output/my_model \
-    --tasks mmlu,gsm8k,hellaswag
+    --model ./tune/results/123456 \
+    --tasks mmlu,gsm8k,hellaswag \
+    --output_path "$RESULTS_DIR"
 ```
 
 Submit to KOA:
 ```bash
-koa-ml submit jobs/eval_custom.slurm
+koa-ml submit eval/scripts/qwen3/eval_custom.slurm
 ```
 
 ## Next Steps

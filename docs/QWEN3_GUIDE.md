@@ -26,25 +26,25 @@ This guide is specifically for working with **Qwen3** models - the latest genera
 
 ```bash
 # Submit training job
-koa-ml submit jobs/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
 
 # Monitor
 koa-ml jobs
 
 # Evaluate when done
-koa-ml submit jobs/eval_qwen3_quickstart.slurm
+koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
 ```
 
 ### 2. Production Training (8B Model)
 
 **LoRA (requires 24GB GPU like A30)**:
 ```bash
-koa-ml submit jobs/tune_qwen3_8b_lora.slurm
+koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
 ```
 
 **QLoRA (requires 12GB GPU like RTX A4000)**:
 ```bash
-koa-ml submit jobs/tune_qwen3_8b_qlora.slurm
+koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
 ```
 
 ### 3. Evaluate Your Model
@@ -57,7 +57,7 @@ python eval/evaluate.py \
   --limit 50
 
 # Full evaluation
-koa-ml submit jobs/eval_qwen3_8b_full.slurm
+koa-ml submit eval/scripts/qwen3/eval_qwen3_8b_full.slurm
 ```
 
 ## Available Configs
@@ -352,10 +352,10 @@ outputs = model.generate(
 **Solution**: Switch to QLoRA
 ```bash
 # Instead of:
-koa-ml submit jobs/tune_qwen3_8b_lora.slurm
+koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
 
 # Use:
-koa-ml submit jobs/tune_qwen3_8b_qlora.slurm
+koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
 ```
 
 ### Slow Training

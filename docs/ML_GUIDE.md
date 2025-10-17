@@ -6,23 +6,23 @@ This guide covers the complete workflow for fine-tuning and evaluating language 
 
 ```
 koa-ml/
-├── tune/                      # Fine-tuning models
-│   ├── configs/models/       # Training configs (LoRA, QLoRA, Full)
-│   ├── train.py              # Training script
-│   └── README.md             # Detailed tuning guide
-│
-├── eval/                      # Evaluating models
-│   ├── configs/benchmarks/   # Evaluation configs (MMLU, GSM8K, etc.)
-│   ├── evaluate.py           # Evaluation script
-│   └── README.md             # Detailed evaluation guide
-│
-├── jobs/                      # SLURM job templates
-│   ├── tune_*.slurm          # Training jobs
-│   └── eval_*.slurm          # Evaluation jobs
-│
-├── output/                    # Fine-tuned model checkpoints
-├── eval_results/             # Evaluation results (JSON)
-└── logs/                     # Job output logs
+|- configs/               # Centralized configuration system
+|  |- datasets/           # Dataset templates
+|  `- recipes/            # Training recipes (Qwen3 family)
+|- eval/                  # Evaluation utilities
+|  |- configs/            # Benchmark definitions
+|  |- results/            # Evaluation outputs (per job ID)
+|  |- scripts/            # SLURM helpers for evaluation
+|  |- evaluate.py         # Evaluation entry point
+|  `- README.md           # Evaluation guide
+|- scripts/               # Developer utilities (validation, comparison, setup)
+|- tune/                  # Fine-tuning utilities
+|  |- results/            # Training outputs (per job ID)
+|  |- scripts/            # SLURM helpers for tuning
+|  |- train.py            # Training entry point
+|  `- README.md           # Fine-tuning guide
+|- src/koa_ml/            # CLI implementation
+`- tests/                 # Automated test suite
 ```
 
 ## Philosophy
@@ -68,34 +68,34 @@ pip install -e ".[ml]"
 
 ```bash
 # Quick training test (10 minutes on GPU)
-python tune/train.py --config tune/configs/models/smollm_135m_lora.yaml --max_steps 10
+python tune/train.py --config configs/recipes/qwen3/0.6b/lora.yaml --max_steps 10
 
 # Quick evaluation test (5 minutes on GPU)
-python eval/evaluate.py --config eval/configs/quickstart.yaml --limit 10
+python eval/evaluate.py --config eval/configs/qwen3_quickstart.yaml --limit 10
 ```
 
 ### 3. Submit to KOA
 
 ```bash
 # Fine-tune on KOA
-koa-ml submit jobs/tune_smollm_quickstart.slurm
+koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
 
 # Monitor job
 koa-ml jobs
 
 # Evaluate on KOA
-koa-ml submit jobs/eval_quickstart.slurm
+koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
 ```
 
 ## Complete Workflow Example
 
-### Scenario: Fine-tune Llama 8B on custom data, then evaluate
+### Scenario: Fine-tune Qwen3 8B on custom data, then evaluate
 
 #### Step 1: Prepare Your Dataset
 
 Option A - Use HuggingFace dataset:
 ```yaml
-# Edit tune/configs/models/llama_8b_lora.yaml
+# Edit configs/recipes/qwen3/8b/lora.yaml
 data:
   train_dataset:
     dataset_name: "your-username/your-dataset"
@@ -119,9 +119,9 @@ PY
 #### Step 2: Configure Training
 
 ```yaml
-# tune/configs/models/llama_8b_lora.yaml
+# configs/recipes/qwen3/8b/lora.yaml
 model:
-  model_name: "meta-llama/Llama-3.1-8B-Instruct"
+  model_name: "Qwen/Qwen3-8B"
 
 data:
   train_dataset:
@@ -130,7 +130,7 @@ data:
 training:
   num_train_epochs: 3
   learning_rate: 3.0e-04
-  output_dir: "./output/my_llama8b_lora"
+  output_dir: "./tune/results/local/my_qwen3_8b_lora"
 
 peft:
   lora_r: 8
@@ -141,14 +141,14 @@ peft:
 
 ```bash
 # Submit to KOA
-koa-ml submit jobs/tune_llama8b_lora.slurm
+koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
 
 # Monitor progress
 koa-ml jobs
 
 # SSH to KOA to check detailed logs
 ssh koa.its.hawaii.edu
-tail -f ~/koa-ml/logs/tune-llama8b-lora-<JOB_ID>.out
+tail -f ~/koa-ml/tune/results/<JOB_ID>/job.out
 ```
 
 #### Step 4: Evaluate Base Model
@@ -157,7 +157,7 @@ While training runs, evaluate the base model:
 
 ```bash
 # Edit eval/configs/benchmarks/mmlu.yaml to use base model
-koa-ml submit jobs/eval_mmlu.slurm
+koa-ml submit eval/scripts/qwen3/eval_qwen3_8b_full.slurm
 ```
 
 #### Step 5: Evaluate Fine-Tuned Model
@@ -170,36 +170,26 @@ cp eval/configs/benchmarks/mmlu.yaml eval/configs/my_model_eval.yaml
 
 # Edit to point to your checkpoint
 # model:
-#   model_name: "./output/my_llama8b_lora"
+#   model_name: "./tune/results/<JOB_ID>"
 
 # Submit evaluation
-koa-ml submit jobs/eval_mmlu.slurm
+koa-ml submit eval/scripts/qwen3/eval_qwen3_8b_full.slurm
 ```
 
 #### Step 6: Compare Results
 
 ```bash
-# Download results from KOA
-scp koa.its.hawaii.edu:~/koa-ml/eval_results/* ./local_results/
+# Download baseline and fine-tuned results (replace JOB IDs)
+rsync -avz koa.its.hawaii.edu:~/koa-ml/eval/results/<BASE_JOB>/ ./local_results/base_job/
+rsync -avz koa.its.hawaii.edu:~/koa-ml/eval/results/<FINETUNED_JOB>/ ./local_results/finetuned_job/
 
-# Compare metrics with a quick script
-python - <<'PY'
-import json
-from pathlib import Path
+# Generate a comparison report
+python scripts/compare_results.py \
+  --baseline local_results/base_job \
+  --checkpoint local_results/finetuned_job \
+  --output local_results/comparison.md
 
-def load_acc(path: Path) -> float:
-    with path.open() as f:
-        data = json.load(f)
-    task = next(iter(data["results"].values()))
-    return task.get("acc") or task.get("exact_match")
-
-base = load_acc(Path("./local_results/base_model/mmlu_results.json"))
-finetuned = load_acc(Path("./local_results/my_model/mmlu_results.json"))
-
-print(f"Base accuracy   : {base:.4f}")
-print(f"Fine-tuned acc. : {finetuned:.4f}")
-print(f"Delta           : {finetuned - base:+.4f}")
-PY
+cat local_results/comparison.md
 ```
 
 ## Understanding Configs
@@ -209,7 +199,7 @@ PY
 ```yaml
 # Model: What model to load
 model:
-  model_name: "meta-llama/Llama-3.1-8B-Instruct"  # HF Hub ID or local path
+  model_name: "Qwen/Qwen3-8B"  # HF Hub ID or local path
   model_max_length: 8192                          # Context window
   dtype: "bfloat16"                               # Use bf16 for A100/A30
   attn_implementation: "flash_attention_2"        # 2-3x faster
@@ -220,7 +210,7 @@ data:
     dataset_name: "yahma/alpaca-cleaned"          # HF dataset ID
     split: "train"                                 # Which split
   target_column: "text"                           # Text column name
-  template: "llama3"                              # Prompt format
+  template: "qwen"                                # Prompt format
 
 # Training: How to train
 training:
@@ -232,7 +222,7 @@ training:
   warmup_ratio: 0.03                              # 3% warmup
   num_train_epochs: 3                             # Train for 3 epochs
   save_steps: 50                                  # Checkpoint every 50 steps
-  output_dir: "./output/my_model"                 # Save location
+  output_dir: "./tune/results/local/my_model"     # Save location
 
 # PEFT: Optional LoRA config
 peft:
@@ -251,7 +241,7 @@ peft:
 ```yaml
 # Model: What to evaluate
 model:
-  model_name: "meta-llama/Llama-3.1-8B-Instruct"  # Base or fine-tuned
+  model_name: "Qwen/Qwen3-8B"  # Base or fine-tuned
   model_max_length: 2048
   dtype: "bfloat16"
 
@@ -266,7 +256,7 @@ tasks:
   - backend: "lm_harness"
     task: "mmlu"                                  # Benchmark name
     num_fewshot: 5                                # Few-shot examples
-    output_path: "./eval_results/mmlu"
+    output_path: "./eval/results/local/mmlu"
 ```
 
 ## Available Models
@@ -282,7 +272,7 @@ tasks:
 - `Qwen/Qwen2.5-7B-Instruct` - 7B params
 
 **Large**:
-- `meta-llama/Llama-3.1-8B-Instruct` - 8B params
+- `Qwen/Qwen3-8B` - 8B params
 - `meta-llama/Llama-3.1-70B-Instruct` - 70B params
 
 ### Your Fine-Tuned Models
@@ -290,7 +280,7 @@ tasks:
 After training, reference them by path:
 ```yaml
 model:
-  model_name: "./output/llama8b_lora"
+  model_name: "./tune/results/<JOB_ID>"
 ```
 
 ## Available Benchmarks
@@ -336,7 +326,7 @@ See [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/
 |-------|------|-------|---------|
 | SmolLM 135M | 2GB | 1GB | 4GB |
 | Llama 3B | 8GB | 4GB | 16GB |
-| Llama 8B | 24GB | 12GB | 40GB |
+| Qwen3 8B | 24GB | 12GB | 40GB |
 | Llama 70B | 80GB | 40GB | 280GB |
 
 ### Training Tips
@@ -379,7 +369,7 @@ See [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness/
 ```bash
 # Fast iterations with small model
 python tune/train.py \
-  --config tune/configs/models/smollm_135m_lora.yaml \
+  --config configs/recipes/qwen3/0.6b/lora.yaml \
   --max_steps 100
 
 python eval/evaluate.py \
@@ -394,15 +384,15 @@ python eval/evaluate.py \
 # Train with different ranks
 for rank in 4 8 16 32; do
   python tune/train.py \
-    --config tune/configs/models/llama_8b_lora.yaml \
-    --output_dir ./output/llama8b_lora_r${rank}
+    --config configs/recipes/qwen3/8b/lora.yaml \
+    --output_dir ./output/qwen3_8b_lora_r${rank}
   # (Edit config to set lora_r: ${rank})
 done
 
 # Evaluate all
 for rank in 4 8 16 32; do
   python eval/evaluate.py \
-    --model ./output/llama8b_lora_r${rank} \
+    --model ./output/qwen3_8b_lora_r${rank} \
     --tasks mmlu
 done
 ```

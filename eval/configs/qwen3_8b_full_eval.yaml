@@ -19,22 +19,22 @@ tasks:
   - backend: "lm_harness"
     task: "mmlu"
     num_fewshot: 5
-    output_path: "./eval_results/qwen3_8b/mmlu"
+    output_path: "./eval/results/local/qwen3_8b/mmlu"
 
   # Math reasoning
   - backend: "lm_harness"
     task: "gsm8k"
     num_fewshot: 8
-    output_path: "./eval_results/qwen3_8b/gsm8k"
+    output_path: "./eval/results/local/qwen3_8b/gsm8k"
 
   # Commonsense reasoning
   - backend: "lm_harness"
     task: "hellaswag"
     num_fewshot: 10
-    output_path: "./eval_results/qwen3_8b/hellaswag"
+    output_path: "./eval/results/local/qwen3_8b/hellaswag"
 
   # Truthfulness
   - backend: "lm_harness"
     task: "truthfulqa_mc2"
     num_fewshot: 0
-    output_path: "./eval_results/qwen3_8b/truthfulqa"
+    output_path: "./eval/results/local/qwen3_8b/truthfulqa"

@@ -121,7 +121,7 @@ PARTITION AVAIL  TIMELIMIT  NODES GRES...
 
 ```bash
 # Submit the example test job
-koa-ml submit jobs/example_job.slurm --partition gpu-sandbox --gpus 1
+koa-ml submit eval/scripts/example_job.slurm --partition gpu-sandbox --gpus 1
 ```
 
 Expected output:

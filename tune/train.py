@@ -202,12 +202,56 @@ def main():
     print("Starting training...")
     print("="*50 + "\n")
 
+    import time
+    start_time = time.time()
+
     trainer.train()
+
+    training_time = time.time() - start_time
 
     # Save final model
     print("\nSaving final model...")
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
+
+    # Print performance metrics
+    print("\n" + "="*50)
+    print("Training Performance Metrics")
+    print("="*50)
+
+    # Training time
+    hours = int(training_time // 3600)
+    minutes = int((training_time % 3600) // 60)
+    seconds = int(training_time % 60)
+    print(f"Training time: {hours}h {minutes}m {seconds}s ({training_time:.2f}s total)")
+
+    # Get metrics from trainer
+    if hasattr(trainer.state, 'log_history') and trainer.state.log_history:
+        # Calculate throughput
+        total_steps = trainer.state.global_step
+        if total_steps > 0 and training_time > 0:
+            steps_per_second = total_steps / training_time
+            print(f"Training throughput: {steps_per_second:.2f} steps/sec")
+
+        # Find final loss
+        final_loss = None
+        for log_entry in reversed(trainer.state.log_history):
+            if 'loss' in log_entry:
+                final_loss = log_entry['loss']
+                break
+
+        if final_loss is not None:
+            print(f"Final training loss: {final_loss:.4f}")
+
+    # GPU memory stats (if available)
+    if torch.cuda.is_available():
+        max_memory_allocated = torch.cuda.max_memory_allocated() / 1024**3  # Convert to GB
+        print(f"Peak GPU memory: {max_memory_allocated:.2f} GB")
+
+        # Reset peak stats for next run
+        torch.cuda.reset_peak_memory_stats()
+
+    print("="*50)
 
     print(f"\n✓ Training complete! Model saved to: {output_dir}")
 

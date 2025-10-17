@@ -15,9 +15,11 @@ venv/
 ENV/
 env/
 
-# Environment files
+# Environment files (use .env.example as template)
 .env
 .env.local
+.env.*
+!.env.example
 
 # IDEs
 .idea/
@@ -47,10 +49,11 @@ build/
 .koa-config.yaml
 config.yaml
 
-# ML outputs and artifacts
-output/
-logs/
-eval_results/
+# ML outputs and artifacts (now organized under eval/results and tune/results)
+eval/results/*
+!eval/results/.gitkeep
+tune/results/*
+!tune/results/.gitkeep
 wandb/
 *.out
 *.log
@@ -65,3 +68,6 @@ checkpoint-*/
 # HuggingFace cache
 .cache/
 ~/.cache/huggingface/
+
+# Agents
+.claude/

@@ -19,7 +19,7 @@ tasks:
   - backend: "lm_harness"
     task: "mmlu"
     num_fewshot: 5  # 5-shot evaluation (standard)
-    output_path: "./eval_results/mmlu"
+    output_path: "./eval/results/local/mmlu"
 
   # Can also evaluate specific MMLU subtasks
   # - backend: "lm_harness"

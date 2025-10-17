@@ -11,7 +11,7 @@ pip install -e ".[ml]"
 ```
 
 > Setting up on KOA? Start an interactive session (`srun -p gpu-sandbox --gres=gpu:1 --mem=8G -t 0-00:30 --pty /bin/bash`), then run
-> `source scripts/setup_koa_env.sh` inside the repo. The script tries the standard KOA Python module (3.11.5) with fallbacks, attempts to load `system/CUDA/12.2.0`, and will automatically retry `pip install` without flash-attn if nvcc isn’t available. Override modules if needed (e.g.
+> `source scripts/setup_koa_env.sh` inside the repo. The script tries the standard KOA Python module (3.11.5) with fallbacks, attempts to load `system/CUDA/12.2.0`, and will automatically retry `pip install` without flash-attn if nvcc isn't available. Override modules if needed (e.g.
 > `PYTHON_MODULE=lang/Python/3.10.8-GCCcore-12.2.0 CUDA_MODULE= source scripts/setup_koa_env.sh`).
 > The SLURM jobs expect the venv at `$HOME/koa-ml/.venv` (set `KOA_ML_VENV` to override), load the selected Python module (`KOA_PYTHON_MODULE`), and execute from `$HOME/koa-ml` unless `KOA_ML_WORKDIR` is provided.
 
@@ -26,12 +26,12 @@ This installs:
 ```bash
 # Quick training test (requires GPU)
 python tune/train.py \
-  --config tune/configs/models/smollm_135m_lora.yaml \
+  --config configs/recipes/qwen3/0.6b/lora.yaml \
   --max_steps 10
 
 # Quick evaluation test (requires GPU)
 python eval/evaluate.py \
-  --config eval/configs/quickstart.yaml \
+  --config eval/configs/qwen3_quickstart.yaml \
   --limit 10
 ```
 
@@ -41,23 +41,23 @@ python eval/evaluate.py \
 
 ```bash
 # Quick test (30 min)
-koa-ml submit jobs/tune_smollm_quickstart.slurm
+koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
 
-# Llama 8B LoRA (12 hours)
-koa-ml submit jobs/tune_llama8b_lora.slurm
+# Qwen3 8B LoRA (12 hours)
+koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
 
-# Llama 8B QLoRA - memory efficient (12 hours)
-koa-ml submit jobs/tune_llama8b_qlora.slurm
+# Qwen3 8B QLoRA - memory efficient (12 hours)
+koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
 ```
 
 ### Evaluation
 
 ```bash
 # Quick test (30 min)
-koa-ml submit jobs/eval_quickstart.slurm
+koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
 
 # Full MMLU benchmark (2 hours)
-koa-ml submit jobs/eval_mmlu.slurm
+koa-ml submit eval/scripts/qwen3/eval_qwen3_8b_full.slurm
 ```
 
 ### Monitor Jobs
@@ -74,32 +74,33 @@ koa-ml cancel <job_id>
 
 After training:
 ```
-output/
-└── smollm_quickstart_<job_id>/
-    ├── adapter_model.safetensors  # LoRA weights
-    ├── adapter_config.json        # LoRA config
-    └── tokenizer files...
+tune/results/<job_id>/
+|-- adapter_model.safetensors  # LoRA weights
+|-- adapter_config.json        # LoRA config
+|-- tokenizer_config.json      # Tokenizer metadata
+|-- training_args.bin          # Trainer state
+`-- job.out                    # SLURM job log
 ```
 
 After evaluation:
 ```
-eval_results/
-└── mmlu/
-    └── mmlu_results.json          # Benchmark scores
+eval/results/<job_id>/
+|-- mmlu_results.json          # Benchmark scores
+|-- mmlu_results.csv           # Optional CSV export
+`-- job.out                    # SLURM job log
 ```
 
 Job logs:
 ```
-logs/
-├── tune-smollm-<job_id>.out      # Training logs
-└── eval-quickstart-<job_id>.out  # Evaluation logs
+tune/results/<job_id>/job.out      # Training logs
+eval/results/<job_id>/job.out      # Evaluation logs
 ```
 
 ## Next Steps
 
 ### Customize Training
 
-Edit config files in [tune/configs/models/](tune/configs/models/):
+Edit config files in [configs/recipes/qwen3/](../configs/recipes/qwen3/):
 
 ```yaml
 # Change dataset
@@ -122,12 +123,12 @@ peft:
 
 ```bash
 # Option 1: Edit config file
-# Edit eval/configs/benchmarks/mmlu.yaml
-# Change model_name to "./output/your_model"
+# Edit eval/configs/qwen3_8b_full_eval.yaml
+# Change model_name to "./tune/results/<job_id>"
 
 # Option 2: Use CLI
 python eval/evaluate.py \
-  --model ./output/llama8b_lora \
+  --model ./tune/results/123456 \
   --tasks mmlu,gsm8k,hellaswag
 ```
 
@@ -150,19 +151,20 @@ model_name: "Qwen/Qwen2.5-7B-Instruct"
 
 ## Available Configs
 
-### Training Configs ([tune/configs/models/](tune/configs/models/))
-- `smollm_135m_lora.yaml` - Quick testing (10 min)
-- `llama_8b_lora.yaml` - Standard LoRA
-- `llama_8b_qlora.yaml` - Memory-efficient
-- `llama_8b_full.yaml` - Full fine-tuning
+### Training Recipes ([configs/recipes/qwen3/](../configs/recipes/qwen3/))
+- `0.6b/lora.yaml` - Quick testing (30-60 minutes)
+- `4b/lora.yaml` - Balanced LoRA fine-tuning
+- `8b/lora.yaml` - Production LoRA fine-tuning
+- `8b/qlora.yaml` - Memory-efficient QLoRA
+- `14b/qlora.yaml` - Large-model QLoRA
 
-### Evaluation Configs ([eval/configs/benchmarks/](eval/configs/benchmarks/))
-- `quickstart.yaml` - Quick test
-- `mmlu.yaml` - Knowledge (57 subjects)
-- `gsm8k.yaml` - Math reasoning
-- `hellaswag.yaml` - Commonsense
-- `truthfulqa.yaml` - Truthfulness
-- `arc.yaml` - Science reasoning
+### Evaluation Configs ([eval/configs/](../eval/configs/))
+- `qwen3_quickstart.yaml` - Quick verification
+- `qwen3_8b_full_eval.yaml` - Comprehensive benchmark suite
+- `qwen3_vl_m2sv.yaml` - Vision-language evaluation
+- `benchmarks/mmlu.yaml` - MMLU baseline
+- `benchmarks/gsm8k.yaml` - Math reasoning
+- `benchmarks/hellaswag.yaml` - Commonsense reasoning
 
 ## Detailed Guides
 
@@ -174,13 +176,13 @@ model_name: "Qwen/Qwen2.5-7B-Instruct"
 
 ```bash
 # Training
-python tune/train.py --config tune/configs/models/llama_8b_lora.yaml
-python tune/train.py --config <config> --output_dir ./my_output
+python tune/train.py --config configs/recipes/qwen3/8b/lora.yaml
+python tune/train.py --config <config> --output_dir ./tune/results/local/my_run
 python tune/train.py --config <config> --max_steps 100  # Quick test
 
 # Evaluation
-python eval/evaluate.py --config eval/configs/benchmarks/mmlu.yaml
-python eval/evaluate.py --model ./output/my_model --tasks mmlu,gsm8k
+python eval/evaluate.py --config eval/configs/qwen3_8b_full_eval.yaml
+python eval/evaluate.py --model ./tune/results/123456 --tasks mmlu,gsm8k
 python eval/evaluate.py --config <config> --limit 10  # Quick test
 
 # KOA job management
@@ -194,7 +196,7 @@ koa-ml check
 
 1. **Start small**: Test with SmolLM before expensive runs
 2. **Use QLoRA**: If you hit memory issues
-3. **Check logs**: SSH to KOA and check `logs/` directory
+3. **Check logs**: SSH to KOA and inspect `tune/results/{job_id}/job.out`
 4. **Save configs**: Commit your configs to git for reproducibility
 5. **Monitor training**: Look for steady loss decrease in logs
 

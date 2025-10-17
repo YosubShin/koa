@@ -9,6 +9,27 @@ from .config import Config, load_config
 from .slurm import cancel_job, list_jobs, run_health_checks, submit_job
 from .ssh import SSHError, sync_directory_to_remote
 
+DEFAULT_REFRESH_EXCLUDES: list[str] = [
+    ".git/",
+    ".gitignore",
+    ".venv/",
+    "__pycache__/",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    "*.log",
+    "*.tmp",
+    ".DS_Store",
+    ".mypy_cache/",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    ".coverage",
+    ".idea/",
+    ".vscode/",
+    ".claude/",
+    "node_modules/",
+]
+
 
 def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
@@ -134,7 +155,9 @@ def _check(_: argparse.Namespace, config: Config) -> int:
 
 def _refresh(args: argparse.Namespace, config: Config) -> int:
     local_path = Path(args.path).expanduser().resolve() if args.path else Path.cwd()
-    excludes = args.exclude or [".git", ".venv", "__pycache__", "*.pyc", "*.log"]
+    excludes = list(DEFAULT_REFRESH_EXCLUDES)
+    if args.exclude:
+        excludes.extend(args.exclude)
     sync_directory_to_remote(
         config,
         local_path,

@@ -10,9 +10,11 @@ Usage:
 """
 
 import argparse
+import csv
 import json
 import os
 from pathlib import Path
+from typing import Dict, List, Any
 
 import torch
 import yaml
@@ -50,6 +52,103 @@ def create_model(config: dict):
     return model
 
 
+def save_results_csv(results: Dict[str, Any], output_file: Path, task_name: str):
+    """Save results in CSV format."""
+    if 'results' not in results:
+        return
+
+    task_results = results['results'].get(task_name, {})
+
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Metric', 'Value', 'Stderr'])
+
+        for metric, value in task_results.items():
+            if not metric.endswith('_stderr'):
+                stderr_key = f"{metric}_stderr"
+                stderr = task_results.get(stderr_key, '')
+                writer.writerow([metric, value, stderr])
+
+
+def save_results_tsv(results: Dict[str, Any], output_file: Path, task_name: str):
+    """Save results in TSV format (better for long responses)."""
+    if 'results' not in results:
+        return
+
+    task_results = results['results'].get(task_name, {})
+
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f, delimiter='\t')
+        writer.writerow(['Metric', 'Value', 'Stderr'])
+
+        for metric, value in task_results.items():
+            if not metric.endswith('_stderr'):
+                stderr_key = f"{metric}_stderr"
+                stderr = task_results.get(stderr_key, '')
+                writer.writerow([metric, value, stderr])
+
+
+def update_results_summary(results: Dict[str, Any], output_path: Path, task_name: str):
+    """Aggregate task results into results.json for compatibility with downstream tooling."""
+    summary_file = output_path / "results.json"
+
+    # Structure that mirrors lm-eval outputs but allows incremental updates per task
+    summary: Dict[str, Any] = {
+        "results": {},
+        "versions": {},
+    }
+
+    if summary_file.exists():
+        try:
+            with open(summary_file, "r") as existing:
+                loaded = json.load(existing)
+                if isinstance(loaded, dict):
+                    summary.update({k: v for k, v in loaded.items() if isinstance(v, dict)})
+        except json.JSONDecodeError:
+            print(f"Warning: Could not parse existing results file at {summary_file}, recreating it.")
+
+    summary.setdefault("results", {})
+    summary.setdefault("versions", {})
+    summary.setdefault("samples", {})
+
+    task_results = results.get("results", {}).get(task_name, {})
+    summary["results"][task_name] = task_results
+
+    if "versions" in results and isinstance(results["versions"], dict):
+        summary["versions"][task_name] = results["versions"].get(task_name)
+
+    if "samples" in results:
+        samples = results["samples"]
+        if isinstance(samples, dict):
+            summary["samples"][task_name] = samples.get(task_name, samples)
+        else:
+            summary["samples"][task_name] = samples
+
+    with open(summary_file, "w") as handle:
+        json.dump(summary, handle, indent=2)
+
+
+def save_results_multi_format(results: Dict[str, Any], output_path: Path,
+                              task_name: str, formats: List[str]):
+    """Save results in multiple formats."""
+    for fmt in formats:
+        fmt = fmt.strip().lower()
+        if fmt == 'json':
+            output_file = output_path / f"{task_name}_results.json"
+            with open(output_file, 'w') as f:
+                json.dump(results, f, indent=2)
+        elif fmt == 'csv':
+            output_file = output_path / f"{task_name}_results.csv"
+            save_results_csv(results, output_file, task_name)
+        elif fmt == 'tsv':
+            output_file = output_path / f"{task_name}_results.tsv"
+            save_results_tsv(results, output_file, task_name)
+        else:
+            print(f"Warning: Unknown format '{fmt}', skipping")
+
+    update_results_summary(results, output_path, task_name)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Evaluate language models')
     parser.add_argument('-c', '--config', help='Path to config YAML file')
@@ -57,8 +156,13 @@ def main():
     parser.add_argument('--tasks', help='Comma-separated task names (overrides config)')
     parser.add_argument('--num_fewshot', type=int, help='Number of few-shot examples')
     parser.add_argument('--output_path', help='Override output path')
+    parser.add_argument('--output_format', default='json',
+                       help='Output format: json, csv, tsv, or comma-separated (e.g., json,csv) [default: json]')
     parser.add_argument('--limit', type=int, help='Limit number of examples (for testing)')
     args = parser.parse_args()
+
+    # Parse output formats
+    output_formats = [fmt.strip() for fmt in args.output_format.split(',')]
 
     # Load config if provided
     if args.config:
@@ -107,7 +211,7 @@ def main():
     for task_config in tasks_to_run:
         task_name = task_config['task']
         num_fewshot = args.num_fewshot if args.num_fewshot is not None else task_config.get('num_fewshot', 0)
-        output_path = args.output_path or task_config.get('output_path', './eval_results')
+        output_path = args.output_path or task_config.get('output_path', './eval/results')
 
         print("\n" + "="*50)
         print(f"Evaluating: {task_name}")
@@ -139,18 +243,15 @@ def main():
                     stderr = task_results.get(stderr_key, 0)
                     print(f"  {metric}: {value:.4f} ± {stderr:.4f}")
 
-        # Save results to file
+        # Save results to file in specified format(s)
         Path(output_path).mkdir(parents=True, exist_ok=True)
-        output_file = Path(output_path) / f"{task_name}_results.json"
+        save_results_multi_format(results, Path(output_path), task_name, output_formats)
 
-        with open(output_file, 'w') as f:
-            json.dump(results, f, indent=2)
-
-        print(f"\n✓ Results saved to: {output_file}")
+        print(f"\n✓ Results saved to: {output_path} (formats: {', '.join(output_formats)})")
 
     # Save combined results
     if len(all_results) > 1:
-        combined_output = Path(args.output_path or './eval_results') / 'combined_results.json'
+        combined_output = Path(args.output_path or './eval/results') / 'combined_results.json'
         with open(combined_output, 'w') as f:
             json.dump(all_results, f, indent=2)
         print(f"\n✓ Combined results saved to: {combined_output}")

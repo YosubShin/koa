@@ -17,9 +17,9 @@ tasks:
   - backend: "lm_harness"
     task: "arc_challenge"  # Harder version
     num_fewshot: 25
-    output_path: "./eval_results/arc_challenge"
+    output_path: "./eval/results/local/arc_challenge"
 
   - backend: "lm_harness"
     task: "arc_easy"
     num_fewshot: 25
-    output_path: "./eval_results/arc_easy"
+    output_path: "./eval/results/local/arc_easy"

@@ -17,4 +17,4 @@ tasks:
   - backend: "lm_harness"
     task: "truthfulqa_mc2"  # Multiple choice version 2
     num_fewshot: 0  # Zero-shot (standard for TruthfulQA)
-    output_path: "./eval_results/truthfulqa"
+    output_path: "./eval/results/local/truthfulqa"

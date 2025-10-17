@@ -17,4 +17,4 @@ tasks:
   - backend: "lm_harness"
     task: "mmlu_computer_science"
     num_fewshot: 5
-    output_path: "./eval_results/qwen3_quickstart"
+    output_path: "./eval/results/local/qwen3_quickstart"

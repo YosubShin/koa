@@ -6,23 +6,23 @@ One-page reference for working with Qwen3 models on KOA.
 
 | Model | Command | Time | Memory |
 |-------|---------|------|--------|
-| Qwen3-0.6B | `koa-ml submit jobs/tune_qwen3_0.6b_quickstart.slurm` | 30 min | 4GB |
-| Qwen3-4B | `koa-ml submit jobs/tune_qwen3_4b_lora.slurm` | 8 hrs | 12GB |
-| Qwen3-8B (LoRA) | `koa-ml submit jobs/tune_qwen3_8b_lora.slurm` | 12 hrs | 24GB |
-| Qwen3-8B (QLoRA) | `koa-ml submit jobs/tune_qwen3_8b_qlora.slurm` | 12 hrs | 12GB |
-| Qwen3-14B (QLoRA) | `koa-ml submit jobs/tune_qwen3_14b_qlora.slurm` | 16 hrs | 20GB |
+| Qwen3-0.6B | `koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm` | 30 min | 4GB |
+| Qwen3-4B | `koa-ml submit tune/scripts/tune_qwen3_4b_lora.slurm` | 8 hrs | 12GB |
+| Qwen3-8B (LoRA) | `koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm` | 12 hrs | 24GB |
+| Qwen3-8B (QLoRA) | `koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm` | 12 hrs | 12GB |
+| Qwen3-14B (QLoRA) | `koa-ml submit tune/scripts/tune_qwen3_14b_qlora.slurm` | 16 hrs | 20GB |
 
 ## Quick Commands
 
 ```bash
 # Quick test (0.6B model)
-koa-ml submit jobs/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
 
 # Production training (8B with QLoRA)
-koa-ml submit jobs/tune_qwen3_8b_qlora.slurm
+koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
 
 # Evaluate base model
-koa-ml submit jobs/eval_qwen3_quickstart.slurm
+koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
 
 # Evaluate your fine-tuned model
 python eval/evaluate.py \
@@ -119,7 +119,7 @@ training:
 **Out of Memory**: Switch to QLoRA
 ```bash
 # Instead of LoRA
-koa-ml submit jobs/tune_qwen3_8b_qlora.slurm
+koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
 ```
 
 **Slow Training**: Check flash attention is enabled
