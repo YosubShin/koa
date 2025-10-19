@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=eval-qwen3-quick
-#SBATCH --partition=gpu
+#SBATCH --partition=kill-shared
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:30:00
 #SBATCH --mem=16G

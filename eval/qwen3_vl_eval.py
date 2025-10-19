@@ -12,6 +12,7 @@ import argparse
 import gc
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -26,11 +27,11 @@ from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
 Image.MAX_IMAGE_PIXELS = None
 
-# Disable HF Transfer fallback (not reliable on KOA)
+# Disable HF Transfer fallback (not reliable on KOA cluster)
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
 os.environ.setdefault("HF_HUB_DISABLE_HF_TRANSFER", "1")
-
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+
 
 @dataclass
 class EvalConfig:
@@ -78,7 +79,8 @@ def to_torch_dtype(name: str) -> torch.dtype:
     }
     dtype = mapping.get(name.lower())
     if dtype is None:
-        raise ValueError(f"Unsupported dtype '{name}'. Choose from {list(mapping.keys())}")
+        raise ValueError(
+            f"Unsupported dtype '{name}'. Choose from {list(mapping.keys())}")
     return dtype
 
 
@@ -93,19 +95,130 @@ def safe_load_image(image_obj: Any) -> Optional[Image.Image]:
 
 
 def format_prompt(question: str, options: List[str]) -> str:
-    prompt_lines = [question, "", "Options:"]
-    prompt_lines.extend(options)
-    prompt_lines.append("")
-    prompt_lines.append("Provide only the letter of the correct answer (A, B, C, or D).")
-    return "\n".join(prompt_lines)
+    system_prompt = (
+        "You will be given two images: (1) a north-up overhead map "
+        "with arrows labeled A, B, C, ... and (2) a street-view photo.\n"
+        "Rules:\n"
+        "- The camera location is the same for all options: the center of the intersection.\n"
+        "- Each letter corresponds to facing outward from that center along the arrow of that label.\n"
+        "- The small circles near labels are markers only; they are not camera locations.\n"
+        "- The map and photo may be captured years apart. Ignore transient objects (cars, people).\n"
+        "Think step by step to compare the street-view with the map (buildings, angles, lanes, landmarks).\n"
+        "On the final line, output only: Final answer: \\boxed{X} where X is a single letter (A, B, C, ...)."
+    )
+    user_prompt = question.strip()
+    return "\n\n".join([system_prompt, user_prompt])
 
 
-def extract_answer(response: str) -> str:
-    response = response.strip().upper()
-    for char in ("A", "B", "C", "D"):
-        if char in response:
-            return char
-    return response[0] if response else ""
+def normalize_letter(text: str, num_options: int) -> str:
+    """Return a single option letter if confidently present."""
+    if text is None:
+        return ""
+    t = text.strip()
+    if not t:
+        return ""
+
+    def is_valid_letter(ch: str) -> str:
+        if not ch:
+            return ""
+        ch_u = ch.upper()
+        idx = ord(ch_u) - ord("A")
+        return ch_u if 0 <= idx < num_options else ""
+
+    # 1) Exact single letter
+    match_single = re.fullmatch(r"\s*([A-Za-z])\s*", t)
+    if match_single:
+        ch = is_valid_letter(match_single.group(1))
+        if ch:
+            return ch
+
+    # 2) \boxed{X}
+    match_boxed = re.search(
+        r"\\boxed\{\s*([A-Za-z])\s*\}", t, flags=re.IGNORECASE)
+    if match_boxed:
+        ch = is_valid_letter(match_boxed.group(1))
+        if ch:
+            return ch
+
+    # 2b) Repeated-letter outputs like "C. C" or "B B"
+    match_repeat = re.fullmatch(r"\s*([A-Za-z])\s*[\.-:;,]?\s*\1\s*\.?\s*", t)
+    if match_repeat:
+        ch = is_valid_letter(match_repeat.group(1))
+        if ch:
+            return ch
+
+    # 3) Explicit answer phrases anywhere in the text (prefer the last mention)
+    explicit_patterns = [
+        r"(?:\bthe\s+answer\b|\banswer\b)\s*(?:is\s*[:=]?|[:=])\s*([A-Za-z])\b",
+        r"\bfinal\s*(?:answer)?\s*(?:is\s*[:=]?|[:=])\s*([A-Za-z])\b",
+    ]
+    explicit_candidates: List[str] = []
+    for pattern in explicit_patterns:
+        for match in re.finditer(pattern, t, flags=re.IGNORECASE):
+            explicit_candidates.append(match.group(1))
+    for raw in reversed(explicit_candidates):
+        ch = is_valid_letter(raw)
+        if ch:
+            return ch
+
+    # 4) Inspect the last non-empty line for a styled single letter
+    lines = [line.strip() for line in t.splitlines() if line.strip()]
+    if lines:
+        last_line = lines[-1]
+        for pattern in explicit_patterns:
+            match_last = re.search(pattern, last_line, flags=re.IGNORECASE)
+            if match_last:
+                ch = is_valid_letter(match_last.group(1))
+                if ch:
+                    return ch
+
+        match_last_repeat = re.fullmatch(
+            r"\s*([A-Za-z])\s*[\.-:;,]?\s*\1\s*\.?\s*", last_line
+        )
+        if match_last_repeat:
+            ch = is_valid_letter(match_last_repeat.group(1))
+            if ch:
+                return ch
+
+        stripped = re.sub(r"[\s\*`_~\-–—\(\)\[\]\{\}\"'.:;,!]+", "", last_line)
+        if re.fullmatch(r"[A-Za-z]", stripped):
+            ch = is_valid_letter(stripped)
+            if ch:
+                return ch
+
+    # 5) Weaker fallback: choose/option/arrow phrasing without negation context
+    ambiguous_patterns = [
+        r"\bchoose\s*([A-Za-z])\b",
+        r"\b(?:option|choice|arrow)\s*([A-Za-z])\b",
+    ]
+    last_candidate = ""
+    for pattern in ambiguous_patterns:
+        for match in re.finditer(pattern, t, flags=re.IGNORECASE):
+            start = match.start()
+            context = t[max(0, start - 50):start].lower()
+            if any(
+                neg in context
+                for neg in [
+                    "eliminate",
+                    "eliminates",
+                    "eliminated",
+                    "eliminating",
+                    "not ",
+                    "isn't",
+                    "is not",
+                    "avoid",
+                    "eliminates option",
+                    "eliminate option",
+                ]
+            ):
+                continue
+            ch = is_valid_letter(match.group(1))
+            if ch:
+                last_candidate = ch
+    if last_candidate:
+        return last_candidate
+
+    return ""
 
 
 def evaluate(cfg: EvalConfig) -> Dict[str, Any]:
@@ -173,7 +286,7 @@ def evaluate(cfg: EvalConfig) -> Dict[str, Any]:
                 )
 
             generated_ids_trimmed = [
-                out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs["input_ids"], outputs)
+                out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs["input_ids"], outputs)
             ]
 
             response = processor.batch_decode(
@@ -182,7 +295,7 @@ def evaluate(cfg: EvalConfig) -> Dict[str, Any]:
                 clean_up_tokenization_spaces=False,
             )[0]
 
-            prediction = extract_answer(response)
+            prediction = normalize_letter(response, len(item["options"]))
             ground_truth = item["answer"]
             is_correct = prediction == ground_truth
 
@@ -275,8 +388,10 @@ def evaluate(cfg: EvalConfig) -> Dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate Qwen3-VL models.")
-    parser.add_argument("-c", "--config", required=True, help="Path to config YAML file.")
-    parser.add_argument("--output-dir", help="Override output directory from config.")
+    parser.add_argument("-c", "--config", required=True,
+                        help="Path to config YAML file.")
+    parser.add_argument(
+        "--output-dir", help="Override output directory from config.")
     return parser.parse_args()
 
 
@@ -284,7 +399,6 @@ def main() -> None:
     args = parse_args()
     cfg = load_config(args.config)
 
-    # Apply CLI overrides
     if args.output_dir:
         cfg.output_dir = args.output_dir
 

@@ -70,7 +70,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     submit_parser.add_argument("--remote-name", help="Override the filename on KOA.")
     submit_parser.add_argument(
-        "--partition", help="Slurm partition (queue) to submit to."
+        "--partition",
+        help="Slurm partition (queue) to submit to. Defaults to kill-shared.",
     )
     submit_parser.add_argument("--time", help="Walltime request (e.g. 02:00:00).")
     submit_parser.add_argument("--gpus", type=int, help="Number of GPUs to request.")

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=tune-qwen3-8b-qlora
-#SBATCH --partition=gpu
+#SBATCH --partition=kill-shared
 #SBATCH --gres=gpu:1
 #SBATCH --time=12:00:00
 #SBATCH --mem=48G

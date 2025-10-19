@@ -68,6 +68,9 @@ class TestSubmitJob:
         # Verify sbatch was called
         sbatch_call = [c for c in mock_run_ssh.call_args_list if "sbatch" in str(c)]
         assert len(sbatch_call) > 0
+        call_args = sbatch_call[-1].args[1]
+        assert "--partition" in call_args
+        assert "kill-shared" in call_args
 
     def test_submit_job_with_sbatch_args(self, mock_config, mocker, tmp_path):
         """Test job submission with additional sbatch arguments."""
@@ -86,9 +89,10 @@ class TestSubmitJob:
 
         assert job_id == "12345"
         # Check that sbatch was called with the right args
-        call_args = mock_run_ssh.call_args_list[-1][0][1]
+        call_args = mock_run_ssh.call_args_list[-1].args[1]
         assert "--partition" in call_args
         assert "gpu" in call_args
+        assert "kill-shared" not in call_args
         assert "--gres=gpu:1" in call_args
 
     def test_submit_job_with_remote_name(self, mock_config, mocker, tmp_path):

@@ -8,6 +8,19 @@ from .config import Config
 from .ssh import SSHError, copy_to_remote, run_ssh
 
 SBATCH_JOB_ID_PATTERN = re.compile(r"Submitted batch job (\d+)")
+DEFAULT_PARTITION = "kill-shared"
+
+
+def _has_partition_flag(args: Iterable[str]) -> bool:
+    """Return True if any sbatch argument sets the partition."""
+    for arg in args:
+        if arg in {"--partition", "-p"}:
+            return True
+        if arg.startswith("--partition="):
+            return True
+        if arg.startswith("-p") and arg != "-p":
+            return True
+    return False
 
 
 def ensure_remote_workspace(config: Config) -> None:
@@ -33,8 +46,11 @@ def submit_job(
     copy_to_remote(config, local_job_script, remote_script)
 
     args = ["sbatch"]
-    if sbatch_args:
-        args.extend(sbatch_args)
+    sbatch_args_list = list(sbatch_args or [])
+    if not _has_partition_flag(sbatch_args_list):
+        args.extend(["--partition", DEFAULT_PARTITION])
+    if sbatch_args_list:
+        args.extend(sbatch_args_list)
     args.append(str(remote_script))
 
     result = run_ssh(config, args, capture_output=True)

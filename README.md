@@ -107,12 +107,13 @@ koa-ml jobs
 After installation you can run the CLI as `koa-ml <command>` (the `koa_ml` alias also works if you prefer underscores).
 
 - `koa-ml check` - run a lightweight KOA health check (`hostname`, `sinfo`)
-- `koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm --partition gpu --gpus 1` - copy the job script to KOA, submit it with `sbatch`, and print the job id
+- `koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm --partition kill-shared --gpus 1` - copy the job script to KOA, submit it with `sbatch`, and print the job id
 - `koa-ml jobs` - list your active jobs using `squeue`
 - `koa-ml cancel <job_id>` - cancel an active job (`scancel`)
 - `koa-ml refresh` - rsync the current directory to the remote workdir (defaults to `~/koa-ml`)
 
 Each command accepts `--config` if you want to point at a custom configuration path.
+By default, submissions target the `kill-shared` partition; use `--partition` to override.
 
 ## Examples
 
