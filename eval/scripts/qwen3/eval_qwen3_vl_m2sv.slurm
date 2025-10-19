@@ -5,8 +5,8 @@
 #SBATCH --time=04:00:00
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=8
-#SBATCH --output=/home/%u/koa-ml/eval/results/%j/job.out
-#SBATCH --error=/home/%u/koa-ml/eval/results/%j/job.err
+#SBATCH --output=/home/%u/koa-ml/eval/results/%j/job.log
+#SBATCH --error=/home/%u/koa-ml/eval/results/%j/job.log
 
 set -euo pipefail
 
@@ -33,6 +33,18 @@ cd "$REMOTE_WORKDIR"
 # Create job-specific results directory
 RESULTS_DIR="$REMOTE_WORKDIR/eval/results/${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
+
+# Copy version control files to job directory
+echo "Copying version control files..."
+SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/eval/scripts/qwen3/eval_qwen3_vl_m2sv.slurm"
+PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/eval/qwen3_vl_eval.py"
+CONFIG_PATH="$REMOTE_WORKDIR/eval/configs/qwen3_vl_m2sv.yaml"
+
+cp "$SLURM_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy SLURM script"
+cp "$PYTHON_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy Python script"
+cp "$CONFIG_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy config file"
+echo "Version control files copied to: $RESULTS_DIR"
+echo ""
 
 echo "======================================"
 echo "Evaluating Qwen3-VL on M2SV"

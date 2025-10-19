@@ -149,7 +149,6 @@ def sync_directory_to_remote(
         "rsync",
         "-av",
         "--delete",
-        "--delete-excluded",
     ]
     for pattern in excludes:
         rsync_command.extend(["--exclude", pattern])

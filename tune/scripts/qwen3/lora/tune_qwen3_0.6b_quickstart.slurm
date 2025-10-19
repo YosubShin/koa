@@ -5,8 +5,8 @@
 #SBATCH --time=00:30:00
 #SBATCH --mem=16G
 #SBATCH --cpus-per-task=4
-#SBATCH --output=/home/%u/koa-ml/tune/results/%j/job.out
-#SBATCH --error=/home/%u/koa-ml/tune/results/%j/job.err
+#SBATCH --output=/home/%u/koa-ml/tune/results/%j/job.log
+#SBATCH --error=/home/%u/koa-ml/tune/results/%j/job.log
 
 set -euo pipefail
 
@@ -33,6 +33,18 @@ cd "$REMOTE_WORKDIR"
 # Create job-specific results directory
 RESULTS_DIR="$REMOTE_WORKDIR/tune/results/${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
+
+# Copy version control files to job directory
+echo "Copying version control files..."
+SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm"
+PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/tune/train.py"
+CONFIG_PATH="$REMOTE_WORKDIR/configs/recipes/qwen3/0.6b/lora.yaml"
+
+cp "$SLURM_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy SLURM script"
+cp "$PYTHON_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy Python script"
+cp "$CONFIG_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy config file"
+echo "Version control files copied to: $RESULTS_DIR"
+echo ""
 
 echo "======================================"
 echo "Fine-tuning Qwen3 0.6B (Quick Test)"
