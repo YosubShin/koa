@@ -1,4 +1,4 @@
-# Qwen3 0.6B with LoRA fine-tuning
+# Qwen3 0.6B with LoRA training
 # Smallest Qwen3 model - perfect for quick testing and iteration
 # Trains in minutes on a single GPU
 
@@ -27,13 +27,13 @@ training:
   save_steps: 100
   logging_steps: 10
   save_total_limit: 2
-  output_dir: "./tune/results/local/qwen3_0.6b_lora_test"
+  output_dir: "./train/results/local/qwen3_0.6b_lora_test"
   bf16: true
   gradient_checkpointing: true
   optim: "adamw_torch_fused"
 
   # Logging
-  report_to: "none"  # Change to "wandb" if you want W&B logging
+  report_to: "wandb"  # W&B experiment tracking enabled
 
 peft:
   type: "lora"

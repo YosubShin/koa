@@ -1,6 +1,6 @@
 # Training Recipes
 
-Pre-configured, tested recipes for fine-tuning models on KOA HPC.
+Pre-configured, tested recipes for training models on KOA HPC.
 
 ## Quick Start
 
@@ -39,10 +39,10 @@ configs/recipes/
 
 ```bash
 # Submit to KOA with SLURM script
-koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
 
 # Or run directly
-python tune/train.py --config configs/recipes/qwen3/8b/lora.yaml
+python train/train.py --config configs/recipes/qwen3/8b/lora.yaml
 ```
 
 ### Method 2: Copy and Customize
@@ -57,13 +57,13 @@ cp configs/recipes/qwen3/8b/lora.yaml my_custom_recipe.yaml
 # - Modify output directory
 
 # Run your custom recipe
-python tune/train.py --config my_custom_recipe.yaml
+python train/train.py --config my_custom_recipe.yaml
 ```
 
 ### Method 3: Override on Command Line
 
 ```bash
-python tune/train.py \
+python train/train.py \
   --config configs/recipes/qwen3/8b/lora.yaml \
   --output_dir ./my_experiment \
   --max_steps 1000
@@ -148,7 +148,7 @@ Use the following guidelines when selecting a recipe:
 
 2. **Test with small dataset:**
    ```bash
-   python tune/train.py \
+   python train/train.py \
      --config configs/recipes/qwen3/8b/lora.yaml \
      --max_steps 10
    ```
@@ -161,7 +161,7 @@ Use the following guidelines when selecting a recipe:
 ### During Training
 
 1. **Monitor progress:**
-   - Check `tune/results/{job_id}/job.out` for logs
+   - Check `train/results/{job_id}/job.out` for logs
    - Watch GPU utilization
    - Track loss curve
 
@@ -181,7 +181,7 @@ Use the following guidelines when selecting a recipe:
 1. **Evaluate on benchmarks:**
    ```bash
    python eval/evaluate.py \
-     --model tune/results/123456 \
+     --model train/results/123456 \
      --tasks mmlu,gsm8k,hellaswag
    ```
 
@@ -243,7 +243,7 @@ Use the following guidelines when selecting a recipe:
 
 1. Check model-specific README in each directory
 2. Validate your config with `scripts/validate_config.py`
-3. Review error logs in `tune/results/{job_id}/error.log`
+3. Review error logs in `train/results/{job_id}/error.log`
 4. Open an issue with your config and error details
 
 ## Tips for Success
@@ -255,4 +255,4 @@ Use the following guidelines when selecting a recipe:
 - **Compare results:** Use the comparison script to track improvements
 - **Document experiments:** Keep notes on what works and what doesn't
 
-Happy fine-tuning!
+Happy training!

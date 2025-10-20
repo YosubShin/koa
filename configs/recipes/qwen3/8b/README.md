@@ -13,7 +13,7 @@ Production-ready model with excellent performance-to-cost ratio.
 
 **Expected Performance:**
 - Base MMLU: ~68-72%
-- After fine-tuning: 70-75% (task-dependent)
+- After training: 70-75% (task-dependent)
 - GSM8K: ~75-80%
 
 **Configuration:**
@@ -76,19 +76,19 @@ Learning Rate: 3e-4
 ### LoRA Training
 ```bash
 # Submit to KOA
-koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
 
 # Or run directly
-python tune/train.py --config configs/recipes/qwen3/8b/lora.yaml
+python train/train.py --config configs/recipes/qwen3/8b/lora.yaml
 ```
 
 ### QLoRA Training
 ```bash
 # Submit to KOA
-koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
 
 # Or run directly
-python tune/train.py --config configs/recipes/qwen3/8b/qlora.yaml
+python train/train.py --config configs/recipes/qwen3/8b/qlora.yaml
 ```
 
 ## Tips

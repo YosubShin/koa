@@ -7,7 +7,7 @@ from typing import Optional
 
 from .config import Config, load_config
 from .slurm import cancel_job, list_jobs, run_health_checks, submit_job
-from .ssh import SSHError, sync_directory_to_remote
+from .ssh import SSHError, sync_directory_to_remote, copy_to_remote, run_ssh
 
 DEFAULT_REFRESH_EXCLUDES: list[str] = [
     ".git/",
@@ -103,6 +103,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Exclude pattern for rsync (repeatable).",
     )
 
+    auth_parser = subparsers.add_parser(
+        "auth", help="Manage authentication tokens (HuggingFace, W&B) on KOA."
+    )
+    _add_common_arguments(auth_parser)
+    auth_parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="Sync local .env file to remote KOA workdir.",
+    )
+    auth_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check if tokens are configured on KOA.",
+    )
+    auth_parser.add_argument(
+        "--env-file",
+        type=Path,
+        default=None,
+        help="Path to .env file (defaults to .env in current directory).",
+    )
+
     return parser
 
 
@@ -171,6 +192,67 @@ def _refresh(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def _auth(args: argparse.Namespace, config: Config) -> int:
+    """Manage authentication tokens on KOA."""
+    if args.check:
+        # Check if tokens are configured
+        print("Checking authentication configuration on KOA...")
+        check_cmd = f"test -f {config.remote_workdir}/.env && echo 'EXISTS' || echo 'NOT_FOUND'"
+        result = run_ssh(config, check_cmd, capture_output=True, check=False)
+
+        if "EXISTS" in result.stdout:
+            print(f"✓ .env file found at {config.remote_workdir}/.env")
+
+            # Check for specific tokens
+            tokens_to_check = ["HF_TOKEN", "WANDB_API_KEY", "WANDB_PROJECT", "WANDB_ENTITY"]
+            print("\nChecking for tokens:")
+            for token in tokens_to_check:
+                check_token_cmd = f"grep -q '^{token}=' {config.remote_workdir}/.env && echo 'SET' || echo 'NOT_SET'"
+                token_result = run_ssh(config, check_token_cmd, capture_output=True, check=False)
+                status = "✓ Set" if "SET" in token_result.stdout else "✗ Not set"
+                print(f"  {token}: {status}")
+        else:
+            print(f"✗ No .env file found at {config.remote_workdir}/.env")
+            print("\nTo sync your local .env file to KOA, run:")
+            print("  koa-ml auth --sync")
+
+        return 0
+
+    if args.sync:
+        # Sync .env file to remote
+        env_file = Path(args.env_file).expanduser().resolve() if args.env_file else Path.cwd() / ".env"
+
+        if not env_file.exists():
+            print(f"Error: .env file not found at {env_file}", file=sys.stderr)
+            print("\nTo create one, copy .env.example and fill in your tokens:", file=sys.stderr)
+            print(f"  cp .env.example .env", file=sys.stderr)
+            print(f"  # Edit .env and add your HF_TOKEN and WANDB_API_KEY", file=sys.stderr)
+            return 1
+
+        print(f"Syncing {env_file} -> {config.login}:{config.remote_workdir}/.env")
+
+        # Copy .env to remote
+        remote_env_path = Path(config.remote_workdir) / ".env"
+        copy_to_remote(config, env_file, remote_env_path)
+
+        # Set proper permissions (readable only by user)
+        chmod_cmd = f"chmod 600 {config.remote_workdir}/.env"
+        run_ssh(config, chmod_cmd)
+
+        print("✓ .env file synced successfully")
+        print("\nYour tokens are now available on KOA.")
+        print("SLURM jobs will automatically load them from the .env file.")
+
+        return 0
+
+    # Default: show help
+    print("Usage: koa-ml auth [--sync | --check]")
+    print("\nOptions:")
+    print("  --sync   Sync local .env file to remote KOA")
+    print("  --check  Check authentication status on KOA")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -190,6 +272,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             return _check(args, config)
         if args.command == "refresh":
             return _refresh(args, config)
+        if args.command == "auth":
+            return _auth(args, config)
     except (SSHError, FileNotFoundError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

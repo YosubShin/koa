@@ -4,8 +4,8 @@ Fine-tuning script for language models with LoRA/QLoRA/Full support.
 Based on best practices from oumi-ai/oumi, using HuggingFace transformers + PEFT + TRL.
 
 Usage:
-    python tune/train.py --config tune/configs/models/smollm_135m_lora.yaml
-    python tune/train.py --config tune/configs/models/llama_8b_qlora.yaml --output_dir ./my_output
+    python train/train.py --config train/configs/models/smollm_135m_lora.yaml
+    python train/train.py --config train/configs/models/llama_8b_qlora.yaml --output_dir ./my_output
 """
 
 import argparse

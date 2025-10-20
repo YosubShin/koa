@@ -3,7 +3,7 @@
 Validate YAML configuration files for training and evaluation.
 
 Usage:
-    python scripts/validate_config.py tune/configs/models/qwen3_8b_lora.yaml
+    python scripts/validate_config.py train/configs/models/qwen3_8b_lora.yaml
     python scripts/validate_config.py eval/configs/qwen3_8b_full_eval.yaml
     python scripts/validate_config.py --all  # Validate all configs
 """

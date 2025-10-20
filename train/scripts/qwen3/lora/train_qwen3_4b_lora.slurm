@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=tune-qwen3-8b-lora
+#SBATCH --job-name=train-qwen3-4b-lora
 #SBATCH --partition=kill-shared
 #SBATCH --gres=gpu:1
-#SBATCH --time=12:00:00
-#SBATCH --mem=64G
+#SBATCH --time=08:00:00
+#SBATCH --mem=48G
 #SBATCH --cpus-per-task=8
-#SBATCH --output=/home/%u/koa-ml/tune/results/%j/job.log
-#SBATCH --error=/home/%u/koa-ml/tune/results/%j/job.log
+#SBATCH --output=/home/%u/koa-ml/train/results/%j/job.log
+#SBATCH --error=/home/%u/koa-ml/train/results/%j/job.log
 
 set -euo pipefail
 
@@ -30,15 +30,26 @@ if [ ! -d "$REMOTE_WORKDIR" ]; then
 fi
 cd "$REMOTE_WORKDIR"
 
+# Load environment variables (HF_TOKEN, WANDB_API_KEY, etc.)
+if [ -f "$REMOTE_WORKDIR/.env" ]; then
+  echo "Loading environment from .env file..."
+  set -a  # automatically export all variables
+  source "$REMOTE_WORKDIR/.env"
+  set +a
+else
+  echo "Warning: No .env file found. HuggingFace and W&B tokens may not be available."
+  echo "To sync your tokens, run: koa-ml auth --sync"
+fi
+
 # Create job-specific results directory
-RESULTS_DIR="$REMOTE_WORKDIR/tune/results/${SLURM_JOB_ID}"
+RESULTS_DIR="$REMOTE_WORKDIR/train/results/${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
 
 # Copy version control files to job directory
 echo "Copying version control files..."
-SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm"
-PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/tune/train.py"
-CONFIG_PATH="$REMOTE_WORKDIR/configs/recipes/qwen3/8b/lora.yaml"
+SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/train/scripts/qwen3/lora/tune_qwen3_4b_lora.slurm"
+PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/train/train.py"
+CONFIG_PATH="$REMOTE_WORKDIR/configs/recipes/qwen3/4b/lora.yaml"
 
 cp "$SLURM_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy SLURM script"
 cp "$PYTHON_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy Python script"
@@ -47,7 +58,7 @@ echo "Version control files copied to: $RESULTS_DIR"
 echo ""
 
 echo "======================================"
-echo "Fine-tuning Qwen3 8B with LoRA"
+echo "Training Qwen3 4B with LoRA"
 echo "======================================"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
@@ -73,8 +84,8 @@ echo ""
 
 # Training
 echo "==== Starting Training ===="
-python tune/train.py \
-    --config configs/recipes/qwen3/8b/lora.yaml \
+python train/train.py \
+    --config configs/recipes/qwen3/4b/lora.yaml \
     --output_dir "$RESULTS_DIR"
 
 echo ""

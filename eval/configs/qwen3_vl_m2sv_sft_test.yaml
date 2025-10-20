@@ -1,0 +1,23 @@
+# Evaluation config for fine-tuned Qwen3-VL on M2SV-SFT TEST split
+# Use this to check generalization to unseen data
+
+model:
+  # IMPORTANT: Update this path to point to your fine-tuned model checkpoint!
+  # Example: model_name: "/home/your_username/koa-ml/train/results/123456"
+  model_name: "Qwen/Qwen3-VL-4B-Instruct"  # Replace with fine-tuned checkpoint path
+  dtype: "float16"
+  device_map: "auto"
+
+dataset:
+  name: "yosubshin/m2sv-sft"
+  split: "test"
+
+generation:
+  max_new_tokens: 128
+  temperature: 0.1
+  # Optional: limit for quick testing
+  # limit: 100
+
+output:
+  dir: "./eval/results/local/qwen3_vl_m2sv_sft_test"
+  save_predictions: true

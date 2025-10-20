@@ -13,7 +13,7 @@ Small, fast model perfect for experimentation and quick iterations.
 
 **Expected Performance:**
 - Base MMLU: ~45-50%
-- After fine-tuning: Improved task-specific performance
+- After training: Improved task-specific performance
 
 **Configuration:**
 ```yaml
@@ -35,10 +35,10 @@ Learning Rate: 3e-4
 **Usage:**
 ```bash
 # Test locally
-python tune/train.py --config configs/recipes/qwen3/0.6b/lora.yaml --max_steps 100
+python train/train.py --config configs/recipes/qwen3/0.6b/lora.yaml --max_steps 100
 
 # Submit to KOA
-koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
 ```
 
 ## Tips

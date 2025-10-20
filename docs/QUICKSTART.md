@@ -1,6 +1,6 @@
 # Quick Start: Fine-Tuning & Evaluation on KOA
 
-Get started with fine-tuning and evaluating models on KOA in 5 minutes.
+Get started with training and evaluating models on KOA in 5 minutes.
 
 ## Setup (One Time)
 
@@ -17,7 +17,7 @@ pip install -e ".[ml]"
 
 This installs:
 - PyTorch, Transformers, Accelerate (core ML)
-- PEFT, TRL (fine-tuning)
+- PEFT, TRL (training)
 - lm-eval (benchmarking)
 - bitsandbytes, flash-attn (optimizations; Linux only extras and skipped on macOS)
 
@@ -25,7 +25,7 @@ This installs:
 
 ```bash
 # Quick training test (requires GPU)
-python tune/train.py \
+python train/train.py \
   --config configs/recipes/qwen3/0.6b/lora.yaml \
   --max_steps 10
 
@@ -41,13 +41,13 @@ python eval/evaluate.py \
 
 ```bash
 # Quick test (30 min)
-koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
 
 # Qwen3 8B LoRA (12 hours)
-koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
 
 # Qwen3 8B QLoRA - memory efficient (12 hours)
-koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
 ```
 
 ### Evaluation
@@ -74,7 +74,7 @@ koa-ml cancel <job_id>
 
 After training:
 ```
-tune/results/<job_id>/
+train/results/<job_id>/
 |-- adapter_model.safetensors  # LoRA weights
 |-- adapter_config.json        # LoRA config
 |-- tokenizer_config.json      # Tokenizer metadata
@@ -92,7 +92,7 @@ eval/results/<job_id>/
 
 Job logs:
 ```
-tune/results/<job_id>/job.out      # Training logs
+train/results/<job_id>/job.out      # Training logs
 eval/results/<job_id>/job.out      # Evaluation logs
 ```
 
@@ -124,11 +124,11 @@ peft:
 ```bash
 # Option 1: Edit config file
 # Edit eval/configs/qwen3_8b_full_eval.yaml
-# Change model_name to "./tune/results/<job_id>"
+# Change model_name to "./train/results/<job_id>"
 
 # Option 2: Use CLI
 python eval/evaluate.py \
-  --model ./tune/results/123456 \
+  --model ./train/results/123456 \
   --tasks mmlu,gsm8k,hellaswag
 ```
 
@@ -153,8 +153,8 @@ model_name: "Qwen/Qwen2.5-7B-Instruct"
 
 ### Training Recipes ([configs/recipes/qwen3/](../configs/recipes/qwen3/))
 - `0.6b/lora.yaml` - Quick testing (30-60 minutes)
-- `4b/lora.yaml` - Balanced LoRA fine-tuning
-- `8b/lora.yaml` - Production LoRA fine-tuning
+- `4b/lora.yaml` - Balanced LoRA training
+- `8b/lora.yaml` - Production LoRA training
 - `8b/qlora.yaml` - Memory-efficient QLoRA
 - `14b/qlora.yaml` - Large-model QLoRA
 
@@ -169,20 +169,20 @@ model_name: "Qwen/Qwen2.5-7B-Instruct"
 ## Detailed Guides
 
 - [ML_GUIDE.md](ML_GUIDE.md) - Complete workflow guide
-- [tune/README.md](tune/README.md) - Fine-tuning details
+- [train/README.md](train/README.md) - Training details
 - [eval/README.md](eval/README.md) - Evaluation details
 
 ## Common Commands
 
 ```bash
 # Training
-python tune/train.py --config configs/recipes/qwen3/8b/lora.yaml
-python tune/train.py --config <config> --output_dir ./tune/results/local/my_run
-python tune/train.py --config <config> --max_steps 100  # Quick test
+python train/train.py --config configs/recipes/qwen3/8b/lora.yaml
+python train/train.py --config <config> --output_dir ./train/results/local/my_run
+python train/train.py --config <config> --max_steps 100  # Quick test
 
 # Evaluation
 python eval/evaluate.py --config eval/configs/qwen3_8b_full_eval.yaml
-python eval/evaluate.py --model ./tune/results/123456 --tasks mmlu,gsm8k
+python eval/evaluate.py --model ./train/results/123456 --tasks mmlu,gsm8k
 python eval/evaluate.py --config <config> --limit 10  # Quick test
 
 # KOA job management
@@ -196,7 +196,7 @@ koa-ml check
 
 1. **Start small**: Test with SmolLM before expensive runs
 2. **Use QLoRA**: If you hit memory issues
-3. **Check logs**: SSH to KOA and inspect `tune/results/{job_id}/job.out`
+3. **Check logs**: SSH to KOA and inspect `train/results/{job_id}/job.out`
 4. **Save configs**: Commit your configs to git for reproducibility
 5. **Monitor training**: Look for steady loss decrease in logs
 

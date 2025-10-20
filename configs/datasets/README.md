@@ -24,7 +24,7 @@ This directory contains reusable dataset configurations for training models.
 ### Option 1: Reference in model config
 
 ```yaml
-# In tune/configs/models/qwen3_8b_lora.yaml
+# In train/configs/models/qwen3_8b_lora.yaml
 data: !include ../../datasets/alpaca_cleaned.yaml
 ```
 
@@ -53,7 +53,7 @@ data:
 2. Fill in your dataset details
 3. Test with a small run:
    ```bash
-   python tune/train.py --config your_config.yaml --max_steps 10
+   python train/train.py --config your_config.yaml --max_steps 10
    ```
 4. Validate:
    ```bash

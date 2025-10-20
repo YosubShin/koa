@@ -13,7 +13,7 @@ Largest Qwen3 model - maximum performance for demanding applications.
 
 **Expected Performance:**
 - Base MMLU: ~75-78%
-- After fine-tuning: 76-80% (task-dependent)
+- After training: 76-80% (task-dependent)
 - Best-in-class for Qwen3 family
 
 **Configuration:**
@@ -46,10 +46,10 @@ The 14B model is too large for standard LoRA on typical GPUs:
 
 ```bash
 # Submit to KOA
-koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_14b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_14b_qlora.slurm
 
 # Or run directly
-python tune/train.py --config configs/recipes/qwen3/14b/qlora.yaml
+python train/train.py --config configs/recipes/qwen3/14b/qlora.yaml
 ```
 
 ## Tips

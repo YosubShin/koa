@@ -96,7 +96,7 @@ Each benchmark config has 3 sections:
 model:
   model_name: "Qwen/Qwen3-8B"
   # Or evaluate your fine-tuned model:
-  # model_name: "./tune/results/123456"
+  # model_name: "./train/results/123456"
   model_max_length: 2048
   dtype: "bfloat16"
   attn_implementation: "flash_attention_2"
@@ -125,7 +125,7 @@ tasks:
 
 ```yaml
 model:
-  model_name: "./tune/results/123456"  # Path to your checkpoint
+  model_name: "./train/results/123456"  # Path to your checkpoint
 ```
 
 ### Option 2: Use CLI override
@@ -133,14 +133,14 @@ model:
 ```bash
 python eval/evaluate.py \
   --config eval/configs/qwen3_8b_full_eval.yaml \
-  --model ./tune/results/123456
+  --model ./train/results/123456
 ```
 
 ### Option 3: Direct CLI evaluation
 
 ```bash
 python eval/evaluate.py \
-  --model ./tune/results/123456 \
+  --model ./train/results/123456 \
   --tasks mmlu,gsm8k,hellaswag \
   --num_fewshot 5
 ```
@@ -231,7 +231,7 @@ python eval/evaluate.py \
 
 # Evaluate fine-tuned model
 python eval/evaluate.py \
-  --model ./tune/results/123456 \
+  --model ./train/results/123456 \
   --tasks mmlu,gsm8k \
   --output_path ./eval/results/finetuned_model
 
@@ -331,7 +331,7 @@ cp eval/scripts/qwen3/eval_qwen3_8b_full.slurm eval/scripts/qwen3/eval_custom.sl
 Edit the evaluation command to use your model:
 ```bash
 python eval/evaluate.py \
-    --model ./tune/results/123456 \
+    --model ./train/results/123456 \
     --tasks mmlu,gsm8k,hellaswag \
     --output_path "$RESULTS_DIR"
 ```

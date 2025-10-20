@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=eval-qwen3-8b
+#SBATCH --job-name=eval-qwen3vl-test
 #SBATCH --partition=kill-shared
 #SBATCH --gres=gpu:1
 #SBATCH --time=04:00:00
-#SBATCH --mem=48G
+#SBATCH --mem=64G
 #SBATCH --cpus-per-task=8
 #SBATCH --output=/home/%u/koa-ml/eval/results/%j/job.log
 #SBATCH --error=/home/%u/koa-ml/eval/results/%j/job.log
@@ -47,9 +47,9 @@ mkdir -p "$RESULTS_DIR"
 
 # Copy version control files to job directory
 echo "Copying version control files..."
-SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/eval/scripts/qwen3/eval_qwen3_8b_full.slurm"
-PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/eval/evaluate.py"
-CONFIG_PATH="$REMOTE_WORKDIR/eval/configs/qwen3_8b_full_eval.yaml"
+SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_test.slurm"
+PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/eval/qwen3_vl_eval.py"
+CONFIG_PATH="$REMOTE_WORKDIR/eval/configs/qwen3_vl_m2sv_sft_test.yaml"
 
 cp "$SLURM_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy SLURM script"
 cp "$PYTHON_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy Python script"
@@ -58,18 +58,31 @@ echo "Version control files copied to: $RESULTS_DIR"
 echo ""
 
 echo "======================================"
-echo "Full Evaluation - Qwen3 8B"
+echo "Evaluating Qwen3-VL on M2SV-SFT TEST Split"
+echo "Checking generalization to unseen data"
 echo "======================================"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
 echo "Started: $(date)"
 echo ""
 
-# Load modules
-# module load python/3.11
-# module load cuda/12.1
+# Load required modules (override with KOA_PYTHON_MODULE / KOA_CUDA_MODULE)
+if command -v module >/dev/null 2>&1; then
+  module purge >/dev/null 2>&1 || true
+  if [ -n "${KOA_PYTHON_MODULE:-}" ]; then
+    module load "${KOA_PYTHON_MODULE}"
+  else
+    module load lang/Python/3.11.5-GCCcore-13.2.0
+  fi
+  if [ -n "${KOA_CUDA_MODULE:-}" ]; then
+    module load "${KOA_CUDA_MODULE}"
+  fi
+fi
 
 # Activate virtual environment
+export HF_HUB_ENABLE_HF_TRANSFER=0
+export HF_HUB_DISABLE_HF_TRANSFER=1
+export HF_HUB_DISABLE_TELEMETRY=1
 VENV_PATH="${KOA_ML_VENV:-$HOME/koa-ml/.venv}"
 if [ ! -d "$VENV_PATH" ]; then
   echo "Virtualenv not found at $VENV_PATH" >&2
@@ -77,19 +90,33 @@ if [ ! -d "$VENV_PATH" ]; then
 fi
 source "$VENV_PATH/bin/activate"
 
-# GPU info
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+
 echo "==== GPU Info ===="
 nvidia-smi
 echo ""
 
-# Evaluation
-echo "==== Starting Evaluation ===="
-python eval/evaluate.py \
-    --config eval/configs/qwen3_8b_full_eval.yaml \
-    --output_path "$RESULTS_DIR"
+echo "==== Python Environment ===="
+which python
+python --version
+echo ""
+
+echo "==== Starting Evaluation (TEST Split) ===="
+echo "NOTE: This tests generalization - accuracy may be lower than train split"
+python eval/qwen3_vl_eval.py \
+  --config eval/configs/qwen3_vl_m2sv_sft_test.yaml \
+  --output-dir "$RESULTS_DIR"
 
 echo ""
 echo "======================================"
 echo "Evaluation complete!"
 echo "Ended: $(date)"
 echo "======================================"
+echo ""
+echo "Results saved to: $RESULTS_DIR"
+echo "Check accuracy in: $RESULTS_DIR/summary.json"
+echo ""
+echo "Compare train vs test accuracy to assess model convergence:"
+echo "  - High train accuracy, low test = overfitting"
+echo "  - Both improving together = good convergence"
+echo "  - Both low = need more training or better hyperparameters"

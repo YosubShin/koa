@@ -30,6 +30,17 @@ if [ ! -d "$REMOTE_WORKDIR" ]; then
 fi
 cd "$REMOTE_WORKDIR"
 
+# Load environment variables (HF_TOKEN, WANDB_API_KEY, etc.)
+if [ -f "$REMOTE_WORKDIR/.env" ]; then
+  echo "Loading environment from .env file..."
+  set -a  # automatically export all variables
+  source "$REMOTE_WORKDIR/.env"
+  set +a
+else
+  echo "Warning: No .env file found. HuggingFace and W&B tokens may not be available."
+  echo "To sync your tokens, run: koa-ml auth --sync"
+fi
+
 # Create job-specific results directory
 RESULTS_DIR="$REMOTE_WORKDIR/eval/results/${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"

@@ -49,11 +49,11 @@ build/
 .koa-config.yaml
 config.yaml
 
-# ML outputs and artifacts (now organized under eval/results and tune/results)
+# ML outputs and artifacts (now organized under eval/results and train/results)
 eval/results/*
 !eval/results/.gitkeep
-tune/results/*
-!tune/results/.gitkeep
+train/results/*
+!train/results/.gitkeep
 wandb/
 *.out
 *.log

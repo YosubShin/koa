@@ -1,4 +1,4 @@
-# Qwen3 8B with LoRA fine-tuning
+# Qwen3 8B with LoRA training
 # Flagship Qwen3 dense model
 # Supports thinking mode for complex reasoning tasks
 
@@ -27,7 +27,7 @@ training:
   save_steps: 50
   logging_steps: 5
   save_total_limit: 3
-  output_dir: "./tune/results/local/qwen3_8b_lora"
+  output_dir: "./train/results/local/qwen3_8b_lora"
   bf16: true
   gradient_checkpointing: true
   optim: "adamw_torch_fused"
@@ -37,7 +37,7 @@ training:
   eval_steps: 50
 
   # Logging
-  report_to: "none"
+  report_to: "wandb"  # W&B experiment tracking enabled
 
 peft:
   type: "lora"

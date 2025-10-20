@@ -13,7 +13,7 @@ Mid-size model offering a great balance between performance and resource require
 
 **Expected Performance:**
 - Base MMLU: ~60-65%
-- After fine-tuning: 63-68% (task-dependent)
+- After training: 63-68% (task-dependent)
 - Sweet spot between 0.6B and 8B
 
 **Configuration:**
@@ -36,10 +36,10 @@ Learning Rate: 3e-4
 
 ```bash
 # Submit to KOA
-koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_4b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/tune_qwen3_4b_lora.slurm
 
 # Or run directly
-python tune/train.py --config configs/recipes/qwen3/4b/lora.yaml
+python train/train.py --config configs/recipes/qwen3/4b/lora.yaml
 ```
 
 ## Tips

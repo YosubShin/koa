@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=eval-qwen3-8b
+#SBATCH --job-name=train-qwen3vl-4b-m2sv
 #SBATCH --partition=kill-shared
 #SBATCH --gres=gpu:1
-#SBATCH --time=04:00:00
+#SBATCH --time=12:00:00
 #SBATCH --mem=48G
 #SBATCH --cpus-per-task=8
-#SBATCH --output=/home/%u/koa-ml/eval/results/%j/job.log
-#SBATCH --error=/home/%u/koa-ml/eval/results/%j/job.log
+#SBATCH --output=/home/%u/koa-ml/train/results/%j/job.log
+#SBATCH --error=/home/%u/koa-ml/train/results/%j/job.log
 
 set -euo pipefail
 
@@ -42,14 +42,14 @@ else
 fi
 
 # Create job-specific results directory
-RESULTS_DIR="$REMOTE_WORKDIR/eval/results/${SLURM_JOB_ID}"
+RESULTS_DIR="$REMOTE_WORKDIR/train/results/${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
 
 # Copy version control files to job directory
 echo "Copying version control files..."
-SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/eval/scripts/qwen3/eval_qwen3_8b_full.slurm"
-PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/eval/evaluate.py"
-CONFIG_PATH="$REMOTE_WORKDIR/eval/configs/qwen3_8b_full_eval.yaml"
+SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/train/scripts/qwen3_vl/tune_qwen3_vl_4b_m2sv.slurm"
+PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/train/qwen3_vl_train.py"
+CONFIG_PATH="$REMOTE_WORKDIR/configs/recipes/qwen3_vl/4b_lora_m2sv.yaml"
 
 cp "$SLURM_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy SLURM script"
 cp "$PYTHON_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy Python script"
@@ -58,18 +58,30 @@ echo "Version control files copied to: $RESULTS_DIR"
 echo ""
 
 echo "======================================"
-echo "Full Evaluation - Qwen3 8B"
+echo "Training Qwen3-VL 4B on M2SV-SFT"
 echo "======================================"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
 echo "Started: $(date)"
 echo ""
 
-# Load modules
-# module load python/3.11
-# module load cuda/12.1
+# Load required modules (override with KOA_PYTHON_MODULE / KOA_CUDA_MODULE)
+if command -v module >/dev/null 2>&1; then
+  module purge >/dev/null 2>&1 || true
+  if [ -n "${KOA_PYTHON_MODULE:-}" ]; then
+    module load "${KOA_PYTHON_MODULE}"
+  else
+    module load lang/Python/3.11.5-GCCcore-13.2.0
+  fi
+  if [ -n "${KOA_CUDA_MODULE:-}" ]; then
+    module load "${KOA_CUDA_MODULE}"
+  fi
+fi
 
 # Activate virtual environment
+export HF_HUB_ENABLE_HF_TRANSFER=0
+export HF_HUB_DISABLE_HF_TRANSFER=1
+export HF_HUB_DISABLE_TELEMETRY=1
 VENV_PATH="${KOA_ML_VENV:-$HOME/koa-ml/.venv}"
 if [ ! -d "$VENV_PATH" ]; then
   echo "Virtualenv not found at $VENV_PATH" >&2
@@ -77,19 +89,30 @@ if [ ! -d "$VENV_PATH" ]; then
 fi
 source "$VENV_PATH/bin/activate"
 
-# GPU info
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+
 echo "==== GPU Info ===="
 nvidia-smi
 echo ""
 
-# Evaluation
-echo "==== Starting Evaluation ===="
-python eval/evaluate.py \
-    --config eval/configs/qwen3_8b_full_eval.yaml \
-    --output_path "$RESULTS_DIR"
+echo "==== Python Environment ===="
+which python
+python --version
+echo ""
+
+echo "==== Starting Training ===="
+python train/qwen3_vl_train.py \
+  --config configs/recipes/qwen3_vl/4b_lora_m2sv.yaml \
+  --output_dir "$RESULTS_DIR"
 
 echo ""
 echo "======================================"
-echo "Evaluation complete!"
+echo "Training complete!"
 echo "Ended: $(date)"
 echo "======================================"
+echo ""
+echo "Next steps:"
+echo "  1. Check W&B dashboard for training metrics"
+echo "  2. Evaluate on train split: koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_train.slurm"
+echo "  3. Evaluate on test split: koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_test.slurm"
+echo "  4. Compare train vs test accuracy to assess convergence and generalization"

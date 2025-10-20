@@ -18,20 +18,20 @@ pip install -e ".[train]"
 
 ```bash
 # Quick test with Qwen3 0.6B (small model, trains in minutes)
-python tune/train.py --config configs/recipes/qwen3/0.6b/lora.yaml
+python train/train.py --config configs/recipes/qwen3/0.6b/lora.yaml
 ```
 
 ### 3. Submit to KOA
 
 ```bash
 # Quick test job (30 minutes) - Qwen3 0.6B
-koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
 
 # Qwen3 8B LoRA training (12 hours)
-koa-ml submit tune/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
 
 # Qwen3 14B with QLoRA (memory efficient)
-koa-ml submit tune/scripts/qwen3/qlora/tune_qwen3_14b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_14b_qlora.slurm
 ```
 
 ## Configuration Files
@@ -106,7 +106,7 @@ training:
   lr_scheduler_type: "cosine"              # LR schedule
   warmup_ratio: 0.03                       # Warmup proportion
   num_train_epochs: 3                      # How many epochs
-  output_dir: "./tune/results/local/my_model"  # Where to save
+  output_dir: "./train/results/local/my_model"  # Where to save
 ```
 
 ### 4. PEFT Section (LoRA/QLoRA only)
@@ -174,23 +174,23 @@ training:
 
 Or via CLI:
 ```bash
-python tune/train.py --config configs/recipes/qwen3/8b/lora.yaml --wandb
+python train/train.py --config configs/recipes/qwen3/8b/lora.yaml --wandb
 ```
 
 ## CLI Options
 
 ```bash
 # Basic usage
-python tune/train.py --config <config_file>
+python train/train.py --config <config_file>
 
 # Override output directory
-python tune/train.py --config <config_file> --output_dir ./my_output
+python train/train.py --config <config_file> --output_dir ./my_output
 
 # Quick test (100 steps only)
-python tune/train.py --config <config_file> --max_steps 100
+python train/train.py --config <config_file> --max_steps 100
 
 # Enable W&B logging
-python tune/train.py --config <config_file> --wandb
+python train/train.py --config <config_file> --wandb
 ```
 
 ## Monitoring Jobs on KOA
@@ -201,16 +201,16 @@ koa-ml jobs
 
 # View job output and results
 # SSH to KOA and check:
-# - tune/results/{job_id}/job.out for logs
-# - tune/results/{job_id}/ for model checkpoints and outputs
+# - train/results/{job_id}/job.out for logs
+# - train/results/{job_id}/ for model checkpoints and outputs
 ```
 
 ## Output Structure
 
-After training, your results will be in `tune/results/{job_id}/`:
+After training, your results will be in `train/results/{job_id}/`:
 
 ```
-tune/results/{job_id}/
+train/results/{job_id}/
 |-- job.out                   # SLURM job log
 |-- adapter_config.json       # LoRA config
 |-- adapter_model.safetensors # LoRA weights
@@ -235,10 +235,10 @@ base_model = AutoModelForCausalLM.from_pretrained(
 )
 
 # Load LoRA adapter (replace 123456 with your job ID)
-model = PeftModel.from_pretrained(base_model, "./tune/results/123456")
+model = PeftModel.from_pretrained(base_model, "./train/results/123456")
 
 # Load tokenizer
-tokenizer = AutoTokenizer.from_pretrained("./tune/results/123456")
+tokenizer = AutoTokenizer.from_pretrained("./train/results/123456")
 
 # Generate
 inputs = tokenizer("Your prompt here", return_tensors="pt")
@@ -252,7 +252,7 @@ print(tokenizer.decode(outputs[0]))
 2. **Check memory**: Monitor GPU memory with `nvidia-smi` in job outputs
 3. **Use QLoRA**: If you hit OOM errors, switch to QLoRA config
 4. **Save often**: Set `save_steps` to checkpoint frequently
-5. **Monitor logs**: Check `tune/results/{job_id}/job.out` for errors
+5. **Monitor logs**: Check `train/results/{job_id}/job.out` for errors
 
 ## Troubleshooting
 
