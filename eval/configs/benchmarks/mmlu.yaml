@@ -4,7 +4,7 @@
 
 model:
   model_name: "meta-llama/Llama-3.1-8B-Instruct"
-  # Or use your fine-tuned checkpoint:
+  # Or use your trained checkpoint:
   # model_name: "./output/llama8b_lora"
   model_max_length: 2048
   dtype: "bfloat16"

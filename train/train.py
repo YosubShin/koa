@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fine-tuning script for language models with LoRA/QLoRA/Full support.
+Training script for language models with LoRA/QLoRA/Full support.
 Based on best practices from oumi-ai/oumi, using HuggingFace transformers + PEFT + TRL.
 
 Usage:

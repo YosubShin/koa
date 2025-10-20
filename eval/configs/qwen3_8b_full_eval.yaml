@@ -3,7 +3,7 @@
 
 model:
   model_name: "Qwen/Qwen3-8B"
-  # Or use your fine-tuned checkpoint:
+  # Or use your trained checkpoint:
   # model_name: "./output/qwen3_8b_lora"
   model_max_length: 32768
   dtype: "bfloat16"

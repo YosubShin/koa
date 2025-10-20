@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fine-tuning script for Qwen3-VL models with LoRA support.
+Training script for Qwen3-VL models with LoRA support.
 Adapted for vision-language models that process both images and text.
 
 Usage:

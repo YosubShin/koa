@@ -47,7 +47,7 @@ mkdir -p "$RESULTS_DIR"
 
 # Copy version control files to job directory
 echo "Copying version control files..."
-SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/train/scripts/qwen3_vl/tune_qwen3_vl_4b_m2sv.slurm"
+SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/train/scripts/qwen3_vl/train_qwen3_vl_4b_m2sv.slurm"
 PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/train/qwen3_vl_train.py"
 CONFIG_PATH="$REMOTE_WORKDIR/configs/recipes/qwen3_vl/4b_lora_m2sv.yaml"
 

@@ -95,7 +95,7 @@ Each benchmark config has 3 sections:
 ```yaml
 model:
   model_name: "Qwen/Qwen3-8B"
-  # Or evaluate your fine-tuned model:
+  # Or evaluate your trained model:
   # model_name: "./train/results/123456"
   model_max_length: 2048
   dtype: "bfloat16"
@@ -229,7 +229,7 @@ python eval/evaluate.py \
   --tasks mmlu,gsm8k \
   --output_path ./eval/results/base_model
 
-# Evaluate fine-tuned model
+# Evaluate trained model
 python eval/evaluate.py \
   --model ./train/results/123456 \
   --tasks mmlu,gsm8k \
@@ -343,8 +343,8 @@ koa-ml submit eval/scripts/qwen3/eval_custom.slurm
 
 ## Next Steps
 
-- Evaluate your fine-tuned models
-- Compare before/after fine-tuning
+- Evaluate your trained models
+- Compare before/after training
 - Try different benchmarks
 - Create custom evaluation suites
 - Track results over training iterations
