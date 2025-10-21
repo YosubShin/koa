@@ -13,6 +13,7 @@ DEFAULT_REFRESH_EXCLUDES: list[str] = [
     ".git/",
     ".gitignore",
     ".venv/",
+    ".venv-vllm/",
     "__pycache__/",
     "*.pyc",
     "*.pyo",
