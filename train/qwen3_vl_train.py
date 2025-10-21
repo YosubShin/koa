@@ -158,25 +158,25 @@ def format_m2sv_prompt(example: Dict[str, Any]) -> Dict[str, Any]:
     assistant_response = f"Final answer: \\boxed{{{answer}}}"
 
     # Build messages in Qwen3-VL chat format
-    image_content = []
-
-    # Add street view image
-    if 'image_sv' in example and example['image_sv'] is not None:
-        image_content.append({"type": "image", "image": example['image_sv']})
-
-    # Add map image
-    if 'image_map' in example and example['image_map'] is not None:
-        image_content.append({"type": "image", "image": example['image_map']})
-
-    # Add text prompt
-    image_content.append({"type": "text", "text": user_prompt})
+    # Note: We'll add images in the collator to avoid serialization issues
+    # For now, just create text-based messages with image placeholders
+    image_content = [
+        {"type": "image"},  # Placeholder for image_sv
+        {"type": "image"},  # Placeholder for image_map
+        {"type": "text", "text": user_prompt}
+    ]
 
     messages = [
         {"role": "user", "content": image_content},
-        {"role": "assistant", "content": assistant_response}
+        {"role": "assistant", "content": [{"type": "text", "text": assistant_response}]}
     ]
 
-    return {"messages": messages}
+    # Keep the original images in the dataset - don't embed them in messages
+    return {
+        "messages": messages,
+        "image_sv": example['image_sv'],
+        "image_map": example['image_map']
+    }
 
 
 class VLMDataCollator:
@@ -190,27 +190,57 @@ class VLMDataCollator:
         """
         Collate a batch of vision-language examples.
         """
-        batch_messages = [f['messages'] for f in features]
+        # Process each example separately, then batch manually
+        # This is because Qwen3-VL processor handles multi-image examples differently
+        all_input_ids = []
+        all_attention_masks = []
+        all_pixel_values = []
+        all_image_grid_thws = []
 
-        # Process with the processor's chat template
-        texts = []
-        for messages in batch_messages:
+        for feature in features:
+            messages = feature['messages']
+
+            # Apply chat template to get text
             text = self.processor.apply_chat_template(
                 messages,
                 tokenize=False,
                 add_generation_prompt=False
             )
-            texts.append(text)
 
-        # Tokenize the batch
-        batch = self.processor(
-            text=texts,
-            images=[msg['content'] for msg in batch_messages],
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=self.max_length
-        )
+            # Get images directly from the feature (not from messages)
+            # This avoids serialization issues with PIL Images
+            images = [feature['image_sv'], feature['image_map']]
+
+            # Process this single example with text and images
+            processed = self.processor(
+                text=text,
+                images=images,
+                return_tensors="pt",
+                padding=True,
+                max_length=self.max_length
+            )
+
+            all_input_ids.append(processed['input_ids'][0])
+            all_attention_masks.append(processed['attention_mask'][0])
+            if 'pixel_values' in processed:
+                all_pixel_values.append(processed['pixel_values'])
+            if 'image_grid_thw' in processed:
+                all_image_grid_thws.append(processed['image_grid_thw'])
+
+        # Pad sequences to the same length
+        from torch.nn.utils.rnn import pad_sequence
+        batch = {
+            'input_ids': pad_sequence(all_input_ids, batch_first=True, padding_value=self.processor.tokenizer.pad_token_id),
+            'attention_mask': pad_sequence(all_attention_masks, batch_first=True, padding_value=0),
+        }
+
+        # For vision inputs with multiple images per example, concatenate instead of stack
+        if all_pixel_values:
+            # Concatenate along the batch dimension (dim 0)
+            batch['pixel_values'] = torch.cat(all_pixel_values, dim=0)
+        if all_image_grid_thws:
+            # Concatenate along the batch dimension (dim 0)
+            batch['image_grid_thw'] = torch.cat(all_image_grid_thws, dim=0)
 
         # Create labels (same as input_ids for causal LM)
         batch["labels"] = batch["input_ids"].clone()
@@ -252,7 +282,7 @@ def main():
     print("\nFormatting dataset...")
     dataset = dataset.map(
         format_m2sv_prompt,
-        remove_columns=[col for col in dataset.column_names if col not in ['messages']],
+        remove_columns=[col for col in dataset.column_names if col not in ['messages', 'image_sv', 'image_map']],
         desc="Formatting examples"
     )
 

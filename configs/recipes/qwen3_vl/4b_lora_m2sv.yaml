@@ -8,37 +8,37 @@ model:
   dtype: "bfloat16"
   use_cache: false
 
-  # Optional: Enable for even lower memory (QLoRA)
-  # load_in_4bit: false
-  # bnb_4bit_quant_type: "nf4"
-  # bnb_4bit_compute_dtype: "bfloat16"
-  # bnb_4bit_use_double_quant: true
+  # QLoRA enabled for lower memory usage (RTX 2080 Ti has 11GB)
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_use_double_quant: true
 
 data:
   train_dataset:
     dataset_name: "yosubshin/m2sv-sft"
     split: "train"
-    # Optional: limit for quick testing
-    # limit: 100
+    # Limited to 10 examples for quick testing
+    limit: 10
 
 training:
   trainer_type: "standard"  # Using HF Trainer for VLM
-  per_device_train_batch_size: 2
-  gradient_accumulation_steps: 8  # Effective batch size: 2 * 8 = 16
+  per_device_train_batch_size: 1  # Reduced from 2 for 11GB GPU
+  gradient_accumulation_steps: 16  # Effective batch size: 1 * 16 = 16
   learning_rate: 2.0e-04
   lr_scheduler_type: "cosine"
   warmup_ratio: 0.03
-  max_steps: 3000  # ~4-6 hours of training
-  save_steps: 500
+  max_steps: 100  # Quick test run
+  save_steps: 50
   logging_steps: 10
   save_total_limit: 2
   output_dir: "./train/results/local/qwen3_vl_4b_lora_m2sv"
   bf16: true
   gradient_checkpointing: true
-  optim: "adamw_torch"
+  optim: "adamw_torch"  # Fused version didn't help with QLoRA
 
-  # Logging - W&B enabled by default
-  report_to: "wandb"
+  # Logging - W&B disabled temporarily due to permission issues
+  report_to: "none"  # TODO: Fix W&B permissions and re-enable
 
 peft:
   type: "lora"

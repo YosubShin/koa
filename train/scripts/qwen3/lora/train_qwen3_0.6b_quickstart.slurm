@@ -65,17 +65,31 @@ echo "Node: $(hostname)"
 echo "Started: $(date)"
 echo ""
 
-# Load modules (adjust based on KOA's available modules)
-# module load python/3.11
-# module load cuda/12.1
+# Load required modules (override with KOA_PYTHON_MODULE / KOA_CUDA_MODULE)
+if command -v module >/dev/null 2>&1; then
+  module purge >/dev/null 2>&1 || true
+  if [ -n "${KOA_PYTHON_MODULE:-}" ]; then
+    module load "${KOA_PYTHON_MODULE}"
+  else
+    module load lang/Python/3.11.5-GCCcore-13.2.0
+  fi
+  if [ -n "${KOA_CUDA_MODULE:-}" ]; then
+    module load "${KOA_CUDA_MODULE}"
+  fi
+fi
 
 # Activate virtual environment
+export HF_HUB_ENABLE_HF_TRANSFER=0
+export HF_HUB_DISABLE_HF_TRANSFER=1
+export HF_HUB_DISABLE_TELEMETRY=1
 VENV_PATH="${KOA_ML_VENV:-$HOME/koa-ml/.venv}"
 if [ ! -d "$VENV_PATH" ]; then
   echo "Virtualenv not found at $VENV_PATH" >&2
   exit 1
 fi
 source "$VENV_PATH/bin/activate"
+
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
 
 # GPU info
 echo "==== GPU Info ===="
