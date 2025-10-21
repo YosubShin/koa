@@ -22,7 +22,7 @@ koa-ml refresh
 
 ```bash
 # Submit the training job (~4-6 hours)
-koa-ml submit train/scripts/qwen3_vl/tune_qwen3_vl_4b_m2sv.slurm
+koa-ml submit train/scripts/qwen3_vl/train_qwen3_vl_4b_m2sv.slurm
 
 # Check status
 koa-ml jobs
@@ -149,7 +149,7 @@ Example summary.json:
 koa-ml refresh
 
 # 2. Start training
-koa-ml submit train/scripts/qwen3_vl/tune_qwen3_vl_4b_m2sv.slurm
+koa-ml submit train/scripts/qwen3_vl/train_qwen3_vl_4b_m2sv.slurm
 
 # 3. Monitor jobs
 koa-ml jobs
@@ -175,7 +175,7 @@ koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_test.slurm
 ### Training
 - `train/qwen3_vl_train.py` - VLM training script
 - `configs/recipes/qwen3_vl/4b_lora_m2sv.yaml` - Training config
-- `train/scripts/qwen3_vl/tune_qwen3_vl_4b_m2sv.slurm` - Training SLURM script
+- `train/scripts/qwen3_vl/train_qwen3_vl_4b_m2sv.slurm` - Training SLURM script
 
 ### Evaluation
 - `eval/configs/qwen3_vl_m2sv_sft_train.yaml` - Eval config for train split

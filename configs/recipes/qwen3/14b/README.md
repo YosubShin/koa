@@ -46,7 +46,7 @@ The 14B model is too large for standard LoRA on typical GPUs:
 
 ```bash
 # Submit to KOA
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_14b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_14b_qlora.slurm
 
 # Or run directly
 python train/train.py --config configs/recipes/qwen3/14b/qlora.yaml

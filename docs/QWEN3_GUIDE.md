@@ -26,7 +26,7 @@ This guide is specifically for working with **Qwen3** models - the latest genera
 
 ```bash
 # Submit training job
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Monitor
 koa-ml jobs
@@ -39,12 +39,12 @@ koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
 
 **LoRA (requires 24GB GPU like A30)**:
 ```bash
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 ```
 
 **QLoRA (requires 12GB GPU like RTX A4000)**:
 ```bash
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
 ```
 
 ### 3. Evaluate Your Model
@@ -64,13 +64,13 @@ koa-ml submit eval/scripts/qwen3/eval_qwen3_8b_full.slurm
 
 ### Training Configs
 
-All located in [train/configs/models/](train/configs/models/):
+All located in [configs/recipes/qwen3/](../configs/recipes/qwen3/):
 
-- **[qwen3_0.6b_lora.yaml](train/configs/models/qwen3_0.6b_lora.yaml)** - Quick testing
-- **[qwen3_4b_lora.yaml](train/configs/models/qwen3_4b_lora.yaml)** - Balanced model
-- **[qwen3_8b_lora.yaml](train/configs/models/qwen3_8b_lora.yaml)** - Flagship LoRA
-- **[qwen3_8b_qlora.yaml](train/configs/models/qwen3_8b_qlora.yaml)** - Memory-efficient
-- **[qwen3_14b_qlora.yaml](train/configs/models/qwen3_14b_qlora.yaml)** - Large model
+- **[0.6b/lora.yaml](../configs/recipes/qwen3/0.6b/lora.yaml)** - Quick testing
+- **[4b/lora.yaml](../configs/recipes/qwen3/4b/lora.yaml)** - Balanced model
+- **[8b/lora.yaml](../configs/recipes/qwen3/8b/lora.yaml)** - Flagship LoRA
+- **[8b/qlora.yaml](../configs/recipes/qwen3/8b/qlora.yaml)** - Memory-efficient
+- **[14b/qlora.yaml](../configs/recipes/qwen3/14b/qlora.yaml)** - Large model
 
 ### Evaluation Configs
 
@@ -163,7 +163,7 @@ training:
 
 Or via CLI:
 ```bash
-python train/train.py --config train/configs/models/qwen3_8b_lora.yaml --wandb
+python train/train.py --config configs/recipes/qwen3/8b/lora.yaml --wandb
 ```
 
 ### Adjust Context Length
@@ -253,7 +253,7 @@ Your trained models should maintain or improve these scores, especially on your 
 ```bash
 # Fine-tune on domain data
 python train/train.py \
-  --config train/configs/models/qwen3_8b_lora.yaml \
+  --config configs/recipes/qwen3/8b/lora.yaml \
   # (Edit config to use your domain dataset)
 
 # Evaluate on domain benchmarks
@@ -294,8 +294,8 @@ python eval/evaluate.py \
 
 ```bash
 # Train multiple configs
-for config in qwen3_8b_lora qwen3_8b_qlora; do
-  python train/train.py --config train/configs/models/${config}.yaml
+for config in configs/recipes/qwen3/8b/lora.yaml configs/recipes/qwen3/8b/qlora.yaml; do
+  python train/train.py --config "${config}"
 done
 
 # Evaluate all
@@ -352,10 +352,10 @@ outputs = model.generate(
 **Solution**: Switch to QLoRA
 ```bash
 # Instead of:
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 
 # Use:
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
 ```
 
 ### Slow Training

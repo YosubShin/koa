@@ -78,7 +78,7 @@ python eval/evaluate.py --config eval/configs/qwen3_quickstart.yaml --limit 10
 
 ```bash
 # Fine-tune on KOA
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Monitor job
 koa-ml jobs
@@ -141,14 +141,14 @@ peft:
 
 ```bash
 # Submit to KOA
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 
 # Monitor progress
 koa-ml jobs
 
 # SSH to KOA to check detailed logs
 ssh koa.its.hawaii.edu
-tail -f ~/koa-ml/train/results/<JOB_ID>/job.out
+tail -f ~/koa-ml/train/results/<JOB_ID>/job.log
 ```
 
 #### Step 4: Evaluate Base Model

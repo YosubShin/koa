@@ -24,7 +24,7 @@ This directory contains reusable dataset configurations for training models.
 ### Option 1: Reference in model config
 
 ```yaml
-# In train/configs/models/qwen3_8b_lora.yaml
+# In configs/recipes/qwen3/8b/lora.yaml
 data: !include ../../datasets/alpaca_cleaned.yaml
 ```
 

@@ -4,7 +4,7 @@ Evaluation script for language models using lm-evaluation-harness.
 Supports standard HuggingFace benchmarks (MMLU, GSM8K, HellaSwag, etc.)
 
 Usage:
-    python eval/evaluate.py --config eval/configs/quickstart.yaml
+    python eval/evaluate.py --config eval/configs/qwen3_quickstart.yaml
     python eval/evaluate.py --config eval/configs/benchmarks/mmlu.yaml
     python eval/evaluate.py --model ./output/llama8b_lora --tasks mmlu,gsm8k
 """

@@ -18,7 +18,7 @@ pip install -e ".[eval]"
 
 ```bash
 # Quick test with SmolLM
-python eval/evaluate.py --config eval/configs/quickstart.yaml
+python eval/evaluate.py --config eval/configs/qwen3_quickstart.yaml
 ```
 
 ### 3. Submit to KOA
@@ -214,7 +214,7 @@ koa-ml jobs
 
 # View job output and results
 # SSH to KOA and check:
-# - eval/results/{job_id}/job.out for logs
+# - eval/results/{job_id}/job.log for logs
 # - eval/results/{job_id}/ for all results files
 ```
 

@@ -86,7 +86,7 @@ To enable W&B logging for a training job, you have two options:
 
 **Option 1: Use the --wandb flag**
 ```bash
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 # Then modify your Python call to include --wandb
 ```
 

@@ -38,7 +38,7 @@ Learning Rate: 3e-4
 python train/train.py --config configs/recipes/qwen3/0.6b/lora.yaml --max_steps 100
 
 # Submit to KOA
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 ```
 
 ## Tips

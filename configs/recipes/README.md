@@ -39,7 +39,7 @@ configs/recipes/
 
 ```bash
 # Submit to KOA with SLURM script
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 
 # Or run directly
 python train/train.py --config configs/recipes/qwen3/8b/lora.yaml
@@ -161,7 +161,7 @@ Use the following guidelines when selecting a recipe:
 ### During Training
 
 1. **Monitor progress:**
-   - Check `train/results/{job_id}/job.out` for logs
+   - Check `train/results/{job_id}/job.log` for logs
    - Watch GPU utilization
    - Track loss curve
 

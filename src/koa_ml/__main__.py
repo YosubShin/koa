@@ -85,6 +85,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Additional raw sbatch arguments. Repeat for multiple flags.",
     )
+    submit_parser.add_argument(
+        "--no-auto-gpu",
+        action="store_true",
+        help="Disable automatic GPU selection (use GPU from script or --gpus flag).",
+    )
 
     refresh_parser = subparsers.add_parser(
         "refresh", help="Sync the current directory to the remote KOA workdir."
@@ -149,11 +154,15 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         sbatch_args.extend(["--qos", args.qos])
     sbatch_args.extend(args.sbatch_arg or [])
 
+    # Disable auto-GPU if user specifies --gpus or --no-auto-gpu
+    auto_gpu = not (args.no_auto_gpu or args.gpus)
+
     job_id = submit_job(
         config,
         args.job_script,
         sbatch_args=sbatch_args,
         remote_name=args.remote_name,
+        auto_gpu=auto_gpu,
     )
     print(f"Submitted KOA job {job_id}")
     return 0

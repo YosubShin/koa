@@ -25,13 +25,13 @@ python train/train.py --config configs/recipes/qwen3/0.6b/lora.yaml
 
 ```bash
 # Quick test job (30 minutes) - Qwen3 0.6B
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Qwen3 8B LoRA training (12 hours)
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 
 # Qwen3 14B with QLoRA (memory efficient)
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_14b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_14b_qlora.slurm
 ```
 
 ## Configuration Files
@@ -201,7 +201,7 @@ koa-ml jobs
 
 # View job output and results
 # SSH to KOA and check:
-# - train/results/{job_id}/job.out for logs
+# - train/results/{job_id}/job.log for logs
 # - train/results/{job_id}/ for model checkpoints and outputs
 ```
 
@@ -211,7 +211,7 @@ After training, your results will be in `train/results/{job_id}/`:
 
 ```
 train/results/{job_id}/
-|-- job.out                   # SLURM job log
+|-- job.log                   # SLURM job log
 |-- adapter_config.json       # LoRA config
 |-- adapter_model.safetensors # LoRA weights
 |-- tokenizer_config.json     # Tokenizer
@@ -252,7 +252,7 @@ print(tokenizer.decode(outputs[0]))
 2. **Check memory**: Monitor GPU memory with `nvidia-smi` in job outputs
 3. **Use QLoRA**: If you hit OOM errors, switch to QLoRA config
 4. **Save often**: Set `save_steps` to checkpoint frequently
-5. **Monitor logs**: Check `train/results/{job_id}/job.out` for errors
+5. **Monitor logs**: Check `train/results/{job_id}/job.log` for errors
 
 ## Troubleshooting
 

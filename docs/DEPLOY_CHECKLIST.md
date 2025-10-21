@@ -23,14 +23,14 @@ export KOA_USER="USERNAME"
 
 # Sync repository (first time or full update)
 rsync -avz --exclude='.git' --exclude='.venv' --exclude='*.pyc' \
-  ./ ${KOA_USER}@koa.cs.uoregon.edu:~/koa-ml/
+  ./ ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/
 ```
 
 ### 3. Setup on KOA (First Time Only)
 
 ```bash
 # SSH to KOA
-ssh ${KOA_USER}@koa.cs.uoregon.edu
+ssh ${KOA_USER}@koa.its.hawaii.edu
 
 # Setup environment
 cd ~/koa-ml
@@ -51,13 +51,13 @@ python -c "import torch; print(torch.__version__)"
 cd ~/koa-ml
 
 # Submit quickstart (30 min)
-sbatch train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+sbatch train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Check status
 squeue -u $USER
 
 # Monitor output (replace JOBID)
-tail -f train/results/JOBID/job.out
+tail -f train/results/JOBID/job.log
 ```
 
 ## Verification Checklist
@@ -78,19 +78,19 @@ Before submitting production jobs:
 
 ```bash
 # Quick test (30 min, 8GB GPU)
-sbatch train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+sbatch train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Production 4B (4-8 hrs, 16GB GPU)
-sbatch train/scripts/qwen3/lora/tune_qwen3_4b_lora.slurm
+sbatch train/scripts/qwen3/lora/train_qwen3_4b_lora.slurm
 
 # Production 8B LoRA (8-12 hrs, 24GB GPU)
-sbatch train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+sbatch train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 
 # Production 8B QLoRA (8-12 hrs, 12GB GPU - memory efficient)
-sbatch train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+sbatch train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
 
 # Large 14B (12-16 hrs, 16GB GPU)
-sbatch train/scripts/qwen3/qlora/tune_qwen3_14b_qlora.slurm
+sbatch train/scripts/qwen3/qlora/train_qwen3_14b_qlora.slurm
 ```
 
 ### Evaluation
@@ -114,7 +114,7 @@ sbatch eval/scripts/qwen3/eval_qwen3_vl_m2sv.slurm
 # From local machine
 rsync -avz --exclude='.git' --exclude='.venv' \
   --delete \
-  ./ ${KOA_USER}@koa.cs.uoregon.edu:~/koa-ml/
+  ./ ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/
 ```
 
 **Warning:** `--delete` removes files on KOA that aren't local. Remove this flag to preserve KOA results.
@@ -124,11 +124,11 @@ rsync -avz --exclude='.git' --exclude='.venv' \
 ```bash
 # From local machine
 # Download all results
-rsync -avz ${KOA_USER}@koa.cs.uoregon.edu:~/koa-ml/train/results/ ./train/results/
-rsync -avz ${KOA_USER}@koa.cs.uoregon.edu:~/koa-ml/eval/results/ ./eval/results/
+rsync -avz ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/train/results/ ./train/results/
+rsync -avz ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/eval/results/ ./eval/results/
 
 # Download specific job
-rsync -avz ${KOA_USER}@koa.cs.uoregon.edu:~/koa-ml/train/results/JOBID/ ./train/results/JOBID/
+rsync -avz ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/train/results/JOBID/ ./train/results/JOBID/
 ```
 
 ### Compare Results
@@ -150,7 +150,7 @@ cat comparison.md
 ```bash
 # Check logs
 cat train/results/JOBID/error.log
-cat train/results/JOBID/job.out
+cat train/results/JOBID/job.log
 
 # Common fixes:
 # 1. Check HF_TOKEN is set
@@ -162,7 +162,7 @@ cat train/results/JOBID/job.out
 
 ```bash
 # Switch to QLoRA
-sbatch train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+sbatch train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
 
 # Or edit config:
 nano configs/recipes/qwen3/8b/lora.yaml
@@ -174,12 +174,12 @@ nano configs/recipes/qwen3/8b/lora.yaml
 
 ```bash
 # Verify SLURM script uses new paths
-grep "config" train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+grep "config" train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 # Should show: configs/recipes/qwen3/8b/lora.yaml
 # NOT: train/configs/models/qwen3_8b_lora.yaml
 
 # Re-sync if needed
-rsync -avz ./ ${KOA_USER}@koa.cs.uoregon.edu:~/koa-ml/
+rsync -avz ./ ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/
 ```
 
 ## Monitoring
@@ -201,10 +201,10 @@ sacct -u $USER --format=JobID,JobName,State,Elapsed
 
 ```bash
 # Watch output
-tail -f train/results/JOBID/job.out
+tail -f train/results/JOBID/job.log
 
 # Check GPU usage
-grep "GPU memory" train/results/JOBID/job.out
+grep "GPU memory" train/results/JOBID/job.log
 ```
 
 ### Cancel Job
@@ -224,15 +224,15 @@ Your job succeeded if:
 1.  SLURM exit code 0
 2.  `adapter_model.safetensors` exists in results
 3.  No `error.log` or it's empty
-4.  "Training complete!" in job.out
+4.  "Training complete!" in job.log
 5.  Training metrics printed (time, throughput, GPU mem)
 
 Check with:
 
 ```bash
 ls -lh train/results/JOBID/adapter_model.safetensors
-grep "Training complete" train/results/JOBID/job.out
-grep "Peak GPU memory" train/results/JOBID/job.out
+grep "Training complete" train/results/JOBID/job.log
+grep "Peak GPU memory" train/results/JOBID/job.log
 ```
 
 ## Documentation
@@ -251,10 +251,10 @@ Local -> Validate -> Sync to KOA -> Setup (first time) -> Submit Job -> Monitor 
 ```
 
 1. **Validate**: `python scripts/validate_config.py --all`
-2. **Sync**: `rsync -avz ./ ${KOA_USER}@koa.cs.uoregon.edu:~/koa-ml/`
-3. **Submit**: `sbatch train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm`
-4. **Monitor**: `tail -f train/results/JOBID/job.out`
-5. **Download**: `rsync -avz ${KOA_USER}@koa.cs.uoregon.edu:~/koa-ml/train/results/JOBID/ ./train/results/JOBID/`
+2. **Sync**: `rsync -avz ./ ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/`
+3. **Submit**: `sbatch train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm`
+4. **Monitor**: `tail -f train/results/JOBID/job.log`
+5. **Download**: `rsync -avz ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/train/results/JOBID/ ./train/results/JOBID/`
 6. **Compare**: `python scripts/compare_results.py ...`
 
 ---

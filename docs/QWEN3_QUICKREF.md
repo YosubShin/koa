@@ -6,20 +6,20 @@ One-page reference for working with Qwen3 models on KOA.
 
 | Model | Command | Time | Memory |
 |-------|---------|------|--------|
-| Qwen3-0.6B | `koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm` | 30 min | 4GB |
-| Qwen3-4B | `koa-ml submit train/scripts/tune_qwen3_4b_lora.slurm` | 8 hrs | 12GB |
-| Qwen3-8B (LoRA) | `koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm` | 12 hrs | 24GB |
-| Qwen3-8B (QLoRA) | `koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm` | 12 hrs | 12GB |
-| Qwen3-14B (QLoRA) | `koa-ml submit train/scripts/tune_qwen3_14b_qlora.slurm` | 16 hrs | 20GB |
+| Qwen3-0.6B | `koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm` | 30 min | 4GB |
+| Qwen3-4B | `koa-ml submit train/scripts/qwen3/lora/train_qwen3_4b_lora.slurm` | 8 hrs | 12GB |
+| Qwen3-8B (LoRA) | `koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm` | 12 hrs | 24GB |
+| Qwen3-8B (QLoRA) | `koa-ml submit train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm` | 12 hrs | 12GB |
+| Qwen3-14B (QLoRA) | `koa-ml submit train/scripts/qwen3/qlora/train_qwen3_14b_qlora.slurm` | 16 hrs | 20GB |
 
 ## Quick Commands
 
 ```bash
 # Quick test (0.6B model)
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Production training (8B with QLoRA)
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
 
 # Evaluate base model
 koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
@@ -39,11 +39,11 @@ koa-ml cancel <job_id>
 ## Config Files
 
 ### Training
-- [train/configs/models/qwen3_0.6b_lora.yaml](train/configs/models/qwen3_0.6b_lora.yaml)
-- [train/configs/models/qwen3_4b_lora.yaml](train/configs/models/qwen3_4b_lora.yaml)
-- [train/configs/models/qwen3_8b_lora.yaml](train/configs/models/qwen3_8b_lora.yaml)
-- [train/configs/models/qwen3_8b_qlora.yaml](train/configs/models/qwen3_8b_qlora.yaml)
-- [train/configs/models/qwen3_14b_qlora.yaml](train/configs/models/qwen3_14b_qlora.yaml)
+- [configs/recipes/qwen3/0.6b/lora.yaml](../configs/recipes/qwen3/0.6b/lora.yaml)
+- [configs/recipes/qwen3/4b/lora.yaml](../configs/recipes/qwen3/4b/lora.yaml)
+- [configs/recipes/qwen3/8b/lora.yaml](../configs/recipes/qwen3/8b/lora.yaml)
+- [configs/recipes/qwen3/8b/qlora.yaml](../configs/recipes/qwen3/8b/qlora.yaml)
+- [configs/recipes/qwen3/14b/qlora.yaml](../configs/recipes/qwen3/14b/qlora.yaml)
 
 ### Evaluation
 - [eval/configs/qwen3_quickstart.yaml](eval/configs/qwen3_quickstart.yaml)
@@ -119,7 +119,7 @@ training:
 **Out of Memory**: Switch to QLoRA
 ```bash
 # Instead of LoRA
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
 ```
 
 **Slow Training**: Check flash attention is enabled

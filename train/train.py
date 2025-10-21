@@ -4,8 +4,8 @@ Training script for language models with LoRA/QLoRA/Full support.
 Based on best practices from oumi-ai/oumi, using HuggingFace transformers + PEFT + TRL.
 
 Usage:
-    python train/train.py --config train/configs/models/smollm_135m_lora.yaml
-    python train/train.py --config train/configs/models/llama_8b_qlora.yaml --output_dir ./my_output
+    python train/train.py --config configs/recipes/qwen3/0.6b/lora.yaml
+    python train/train.py --config configs/recipes/qwen3/8b/qlora.yaml --output_dir ./my_output
 """
 
 import argparse

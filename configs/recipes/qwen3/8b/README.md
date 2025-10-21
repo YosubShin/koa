@@ -76,7 +76,7 @@ Learning Rate: 3e-4
 ### LoRA Training
 ```bash
 # Submit to KOA
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 
 # Or run directly
 python train/train.py --config configs/recipes/qwen3/8b/lora.yaml
@@ -85,7 +85,7 @@ python train/train.py --config configs/recipes/qwen3/8b/lora.yaml
 ### QLoRA Training
 ```bash
 # Submit to KOA
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
 
 # Or run directly
 python train/train.py --config configs/recipes/qwen3/8b/qlora.yaml

@@ -41,13 +41,13 @@ python eval/evaluate.py \
 
 ```bash
 # Quick test (30 min)
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Qwen3 8B LoRA (12 hours)
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 
 # Qwen3 8B QLoRA - memory efficient (12 hours)
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_8b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
 ```
 
 ### Evaluation
@@ -79,7 +79,7 @@ train/results/<job_id>/
 |-- adapter_config.json        # LoRA config
 |-- tokenizer_config.json      # Tokenizer metadata
 |-- training_args.bin          # Trainer state
-`-- job.out                    # SLURM job log
+`-- job.log                    # SLURM job log
 ```
 
 After evaluation:
@@ -87,13 +87,13 @@ After evaluation:
 eval/results/<job_id>/
 |-- mmlu_results.json          # Benchmark scores
 |-- mmlu_results.csv           # Optional CSV export
-`-- job.out                    # SLURM job log
+`-- job.log                    # SLURM job log
 ```
 
 Job logs:
 ```
-train/results/<job_id>/job.out      # Training logs
-eval/results/<job_id>/job.out      # Evaluation logs
+train/results/<job_id>/job.log      # Training logs
+eval/results/<job_id>/job.log      # Evaluation logs
 ```
 
 ## Next Steps
@@ -196,7 +196,7 @@ koa-ml check
 
 1. **Start small**: Test with SmolLM before expensive runs
 2. **Use QLoRA**: If you hit memory issues
-3. **Check logs**: SSH to KOA and inspect `train/results/{job_id}/job.out`
+3. **Check logs**: SSH to KOA and inspect `train/results/{job_id}/job.log`
 4. **Save configs**: Commit your configs to git for reproducibility
 5. **Monitor training**: Look for steady loss decrease in logs
 

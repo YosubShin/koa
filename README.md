@@ -314,7 +314,7 @@ Let's test the complete setup with a quick training job!
 
 ```bash
 # Submit a quick test training job (runs for ~30 minutes)
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Check job status
 koa-ml jobs
@@ -324,7 +324,7 @@ You should see your job in the queue:
 
 ```
 JOBID|NAME|STATE|TIME|TIME_LIMIT|NODES|NODELIST(REASON)
-123456|tune-qwen3-0.6b|RUNNING|1:23|0:30:00|1|gpu-node-01
+123456|train-qwen3-0.6b|RUNNING|1:23|0:30:00|1|gpu-node-01
 ```
 
 #### View Live Results in Weights & Biases
@@ -345,13 +345,13 @@ Once you've completed the setup above, here's how to use koa-ml:
 
 ```bash
 # Quick test - Qwen3 0.6B LoRA (30 min)
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_0.6b_quickstart.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 
 # Production - Qwen3 8B LoRA (12 hours)
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_8b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
 
 # Memory-efficient - Qwen3 14B QLoRA
-koa-ml submit train/scripts/qwen3/qlora/tune_qwen3_14b_qlora.slurm
+koa-ml submit train/scripts/qwen3/qlora/train_qwen3_14b_qlora.slurm
 ```
 
 ### Submit an Evaluation Job

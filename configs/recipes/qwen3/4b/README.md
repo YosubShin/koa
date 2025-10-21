@@ -36,7 +36,7 @@ Learning Rate: 3e-4
 
 ```bash
 # Submit to KOA
-koa-ml submit train/scripts/qwen3/lora/tune_qwen3_4b_lora.slurm
+koa-ml submit train/scripts/qwen3/lora/train_qwen3_4b_lora.slurm
 
 # Or run directly
 python train/train.py --config configs/recipes/qwen3/4b/lora.yaml
