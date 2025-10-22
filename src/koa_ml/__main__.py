@@ -20,6 +20,7 @@ DEFAULT_REFRESH_EXCLUDES: list[str] = [
     ".git/",
     ".gitignore",
     ".venv/",
+    ".venv-vllm/",
     "__pycache__/",
     "*.pyc",
     "*.pyo",
@@ -35,6 +36,7 @@ DEFAULT_REFRESH_EXCLUDES: list[str] = [
     ".vscode/",
     ".claude/",
     "node_modules/",
+    "eval/results/",
 ]
 
 

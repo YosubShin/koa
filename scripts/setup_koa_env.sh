@@ -11,6 +11,7 @@
 #   3. Upgrade pip tooling
 #   4. Install an appropriate PyTorch wheel (defaults to CUDA 12.1 build)
 #   5. Install koa-ml in editable mode with the [ml] extras
+#   6. Create a dedicated vLLM virtualenv and install vLLM and helpers
 
 OLD_SET_OPTIONS=$(set +o)
 trap 'eval "${OLD_SET_OPTIONS}"; unset OLD_SET_OPTIONS' EXIT
@@ -154,6 +155,51 @@ else
   python -m pip install -e .
   python -m pip install "${EXTRA_PKGS[@]}"
 fi
+
+
+log "Preparing dedicated vLLM environment"
+VLLM_VENV_DIR="${KOA_VLLM_VENV:-${PROJECT_ROOT}/.venv-vllm}"
+if [[ -d "${VLLM_VENV_DIR}" ]]; then
+  log "Removing existing vLLM venv at ${VLLM_VENV_DIR}"
+  rm -rf "${VLLM_VENV_DIR}"
+fi
+UV_BIN="${UV_BIN:-}"
+if command -v uv >/dev/null 2>&1; then
+  UV_BIN="$(command -v uv)"
+else
+  # Try to install uv locally
+  if command -v curl >/dev/null 2>&1; then
+    log "uv not found; attempting installation via Astral script"
+    curl -LsSf https://astral.sh/uv/install.sh | sh || true
+    export PATH="$HOME/.local/bin:$PATH"
+    if command -v uv >/dev/null 2>&1; then
+      UV_BIN="$(command -v uv)"
+    fi
+  fi
+fi
+
+if [[ -n "${UV_BIN}" ]]; then
+  log "Creating vLLM venv with uv at ${VLLM_VENV_DIR} (python: ${PYTHON_BIN})"
+  "${UV_BIN}" venv --python "${PYTHON_BIN}" "${VLLM_VENV_DIR}"
+  # shellcheck disable=SC1090
+  source "${VLLM_VENV_DIR}/bin/activate"
+  log "Installing torch (GPU wheel) via uv (index: ${TORCH_INDEX_URL})"
+  "${UV_BIN}" pip install --index-url "${TORCH_INDEX_URL}" torch
+  log "Installing vLLM and OpenAI client via uv"
+  "${UV_BIN}" pip install "vllm>=0.5.0" "openai>=1.40.0"
+  deactivate || true
+else
+  log "uv unavailable; falling back to python venv + pip for vLLM env"
+  log "Creating vLLM virtual environment at ${VLLM_VENV_DIR}"
+  uv venv "${VLLM_VENV_DIR}" --python "${PYTHON_BIN}" --seed
+  # shellcheck disable=SC1090
+  source "${VLLM_VENV_DIR}/bin/activate"
+  "${UV_BIN}" pip install vllm --torch-backend=auto
+  deactivate || true
+fi
+
+log "vLLM venv ready at ${VLLM_VENV_DIR} (set KOA_VLLM_VENV to override)."
+log "You can launch a server with: scripts/run_vllm_server.sh --model <hf_repo_or_path>"
 
 log "Environment ready."
 log "To use it in future sessions: source '${VENV_DIR}/bin/activate'"

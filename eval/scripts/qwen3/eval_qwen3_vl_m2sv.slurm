@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=eval-qwen3-vl-m2sv
 #SBATCH --partition=kill-shared
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:{best_gpu}:1
 #SBATCH --time=04:00:00
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=8
@@ -104,10 +104,58 @@ which python
 python --version
 echo ""
 
+CONFIG_PATH="eval/configs/qwen3_vl_m2sv.yaml"
+
+# Detect backend preference: env takes precedence, else read from YAML config
+BACKEND="${KOA_EVAL_BACKEND:-${KOA_EVALUATOR_BACKEND:-}}"
+if [ -z "${BACKEND}" ]; then
+  BACKEND=$(python scripts/yaml_get.py "${CONFIG_PATH}" inference.backend 2>/dev/null || true)
+  BACKEND="${BACKEND,,}"
+fi
+
+## Resolve model name: env override > YAML > default
+MODEL="${KOA_EVAL_MODEL:-${VLLM_MODEL:-}}"
+if [ -z "${MODEL}" ]; then
+  MODEL=$(python scripts/yaml_get.py "${CONFIG_PATH}" model.model_name 2>/dev/null || true)
+fi
+if [ -z "${MODEL}" ]; then
+  MODEL="Qwen/Qwen3-VL-30B-A3B-Instruct"
+fi
+
+STARTED_VLLM=0
+
+if [ "${BACKEND}" = "vllm" ]; then
+  if [ -z "${VLLM_API_BASE:-}" ]; then
+    echo "==== Starting vLLM server (background) ===="
+    PORT=${VLLM_PORT:-$((8000 + SLURM_JOB_ID % 1000))}
+    export KOA_VLLM_VENV="${KOA_VLLM_VENV:-$HOME/koa-ml/.venv-vllm}"
+    scripts/run_vllm_server.sh --model "${MODEL}" --port "${PORT}" --tp ${VLLM_TP:-1} --gpu-mem-util ${VLLM_GPU_MEM_UTIL:-0.92} &
+    VLLM_PID=$!
+    STARTED_VLLM=1
+
+    scripts/wait_for_vllm.sh --api-base "http://127.0.0.1:${PORT}" --model "${MODEL}" --retries ${VLLM_WAIT_RETRIES:-60} --sleep ${VLLM_WAIT_SLEEP:-10} || {
+      echo "vLLM did not load model ${MODEL} in time." >&2
+      kill ${VLLM_PID} || true
+      exit 1
+    }
+    export VLLM_API_BASE="http://127.0.0.1:${PORT}"
+  fi
+  export KOA_EVAL_BACKEND=vllm
+  export VLLM_MODEL="${MODEL}"
+else
+  echo "Skipping vLLM startup; backend='${BACKEND:-hf}'"
+fi
+
 echo "==== Starting Evaluation ===="
 python eval/qwen3_vl_eval.py \
-  --config eval/configs/qwen3_vl_m2sv.yaml \
-  --output-dir "$RESULTS_DIR"
+  --config "${CONFIG_PATH}" || STATUS=$?
+
+if [ ${STARTED_VLLM} -eq 1 ]; then
+  echo "Stopping vLLM server (PID ${VLLM_PID})..."
+  kill ${VLLM_PID} || true
+  wait ${VLLM_PID} || true
+fi
+exit ${STATUS:-0}
 
 echo ""
 echo "======================================"
