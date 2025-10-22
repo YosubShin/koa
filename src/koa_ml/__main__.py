@@ -29,6 +29,7 @@ DEFAULT_REFRESH_EXCLUDES: list[str] = [
     ".vscode/",
     ".claude/",
     "node_modules/",
+    "eval/results/",
 ]
 
 
