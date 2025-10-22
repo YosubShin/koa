@@ -2,6 +2,12 @@
 
 This directory contains configurations and scripts for evaluating language models on standard benchmarks using the KOA HPC cluster.
 
+> **Storage reminder**: Run `koa-ml storage setup --link` so evaluation outputs
+> live under `/mnt/lustre/koa/scratch/<user>/koa-ml` with convenient symlinks in
+> `~/koa-ml/eval/results`. You can also set
+> `export KOA_ML_DATA_ROOT=/mnt/lustre/koa/scratch/$USER/koa-ml` on KOA for
+> explicit shell commands.
+
 ## Quick Start
 
 ### 1. Install Dependencies
@@ -214,8 +220,8 @@ koa-ml jobs
 
 # View job output and results
 # SSH to KOA and check:
-# - eval/results/{job_id}/job.log for logs
-# - eval/results/{job_id}/ for all results files
+# - $KOA_ML_DATA_ROOT/eval/results/{job_id}/job.log for logs
+# - $KOA_ML_DATA_ROOT/eval/results/{job_id}/ for all results files
 ```
 
 ## Comparing Models

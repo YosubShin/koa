@@ -168,6 +168,7 @@ user: "your_koa_username"
 host: koa.its.hawaii.edu
 identity_file: ~/.ssh/id_ed25519
 remote_workdir: /home/your_koa_username/koa-ml
+remote_data_dir: /mnt/lustre/koa/scratch/your_koa_username/koa-ml
 ```
 
 #### Verify CLI Works
@@ -180,6 +181,19 @@ koa-ml check
 # Hostname: koa.its.hawaii.edu
 # SLURM cluster status: ...
 ```
+
+#### Initialize Remote Storage
+
+```bash
+# Create scratch directories and optional symlinks under ~/koa-ml
+koa-ml storage setup --link
+```
+
+This command ensures your code checkout lives in `/home/.../koa-ml`, while large
+artifacts (checkpoints, logs, evaluation outputs) are written to
+`/mnt/lustre/koa/scratch/<user>/koa-ml`. The `--link` flag creates convenient
+symlinks so `~/koa-ml/train/results` and `~/koa-ml/eval/results` point at the
+scratch locations.
 
 ---
 
@@ -377,6 +391,16 @@ koa-ml jobs
 koa-ml cancel <job_id>
 ```
 
+### Inspect Results
+
+```bash
+# List recent training runs on scratch
+koa-ml results list --kind train
+
+# Download an evaluation result locally
+koa-ml results pull 123456 --kind eval --dest ./artifacts/eval-123456
+```
+
 ### Update Code on KOA
 
 ```bash
@@ -463,7 +487,7 @@ koa-ml/
 │
 ├── eval/                       # Evaluation system
 │   ├── configs/               # Evaluation configs
-│   ├── results/               # Results by job ID
+│   ├── results/               # Symlink to scratch results (via `koa-ml storage link`)
 │   │   └── <job_id>/          # Each job gets its own directory
 │   │       ├── predictions.csv
 │   │       ├── summary.json
@@ -476,12 +500,12 @@ koa-ml/
 │   └── qwen3_vl_eval.py      # Vision-language eval
 │
 ├── train/                       # Training system
-│   ├── results/               # Results by job ID
+│   ├── results/               # Symlink to scratch results (via `koa-ml storage link`)
 │   │   └── <job_id>/          # Each job gets its own directory
 │   │       ├── checkpoint-*/  # Model checkpoints
 │   │       ├── logs/          # Training logs
 │   │       ├── job.log        # Combined stdout/stderr
-│   │       ├── tune_*.slurm   # SLURM script used
+│   │       ├── train_*.slurm  # SLURM script used
 │   │       ├── train.py       # Python script used
 │   │       └── *.yaml         # Config used
 │   ├── scripts/qwen3/         # SLURM job scripts
@@ -514,7 +538,7 @@ koa-ml/
 Every job automatically saves the exact code used:
 
 ```
-eval/results/123456/
+/mnt/lustre/koa/scratch/<user>/koa-ml/eval/results/123456/
 ├── job.log                          # All output (stdout + stderr)
 ├── predictions.csv                  # Results
 ├── summary.json                     # Metrics

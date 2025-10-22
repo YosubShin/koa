@@ -19,7 +19,8 @@ def mock_config():
         user="testuser",
         host="koa.its.hawaii.edu",
         identity_file=Path("/fake/id_rsa"),
-        remote_workdir=Path("/home/testuser/koa-ml"),
+        remote_code_dir=Path("/home/testuser/koa-ml"),
+        remote_data_dir=Path("/mnt/lustre/koa/scratch/testuser/koa-ml"),
         proxy_command="ssh -W %h:%p jumphost",
     )
 

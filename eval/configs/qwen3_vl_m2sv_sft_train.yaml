@@ -3,7 +3,7 @@
 
 model:
   # IMPORTANT: Update this path to point to your trained model checkpoint!
-  # Example: model_name: "/home/your_username/koa-ml/train/results/123456"
+  # Example: model_name: "/mnt/lustre/koa/scratch/your_username/koa-ml/train/results/123456"
   model_name: "Qwen/Qwen3-VL-4B-Instruct"  # Replace with trained checkpoint path
   dtype: "float16"
   device_map: "auto"

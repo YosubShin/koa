@@ -55,6 +55,7 @@ class TestConfig:
         assert config.host == "koa.its.hawaii.edu"
         assert config.identity_file is None
         assert config.remote_workdir == Path("~/koa-ml")
+        assert config.remote_data_dir == Path()
         assert config.proxy_command is None
 
     def test_login_property(self):
@@ -79,6 +80,7 @@ class TestLoadConfig:
         assert config.host == "koa.its.hawaii.edu"
         assert config.identity_file is None
         assert config.remote_workdir == Path("/home/testuser/koa-ml")
+        assert config.remote_data_dir == Path("/mnt/lustre/koa/scratch/testuser/koa-ml")
 
     def test_load_config_with_all_fields(self, temp_config_with_identity):
         """Test loading a config with all optional fields."""
@@ -88,6 +90,7 @@ class TestLoadConfig:
         assert config.identity_file is not None
         assert config.identity_file.exists()
         assert config.remote_workdir == Path("/home/testuser/koa-ml")
+        assert config.remote_data_dir == Path("/mnt/lustre/koa/scratch/testuser/koa-ml")
         assert config.proxy_command == "ssh -W %h:%p jumphost"
 
     def test_missing_config_file(self, tmp_path):
@@ -125,11 +128,13 @@ class TestLoadConfig:
         monkeypatch.setenv("KOA_USER", "envuser")
         monkeypatch.setenv("KOA_HOST", "env.host.edu")
         monkeypatch.setenv("KOA_REMOTE_WORKDIR", "/env/workdir")
+        monkeypatch.setenv("KOA_REMOTE_DATA_DIR", "/scratch/custom")
 
         config = load_config(temp_config_file)
         assert config.user == "envuser"
         assert config.host == "env.host.edu"
         assert config.remote_workdir == Path("/env/workdir")
+        assert config.remote_data_dir == Path("/scratch/custom")
 
     def test_empty_config_file(self, tmp_path):
         """Test error with empty config file."""

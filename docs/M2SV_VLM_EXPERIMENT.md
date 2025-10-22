@@ -2,6 +2,11 @@
 
 This guide walks through training and evaluating Qwen3-VL on the M2SV-SFT dataset to assess model convergence and memorization.
 
+> **Storage reminder**: Run `koa-ml storage setup --link` so checkpoints and
+> evaluation outputs live under `/mnt/lustre/koa/scratch/<user>/koa-ml` with
+> symlinks in your `~/koa-ml` checkout. When referencing paths below, you can
+> substitute `$KOA_ML_DATA_ROOT` for `/mnt/lustre/koa/scratch/$USER/koa-ml`.
+
 ## Experiment Overview
 
 **Goal**: Fine-tune Qwen3-VL-4B on M2SV-SFT (street-view to map matching) and evaluate on both train and test splits to understand if the model is:
@@ -33,7 +38,7 @@ koa-ml jobs
 - Method: LoRA (efficient, ~20-24GB GPU memory)
 - Dataset: M2SV-SFT training split
 - Duration: ~3000 steps (~4-6 hours)
-- Output: Results saved to `train/results/<job_id>/`
+- Output: Results saved to `$KOA_ML_DATA_ROOT/train/results/<job_id>/`
 - Tracking: Real-time metrics in W&B
 
 ### Step 3: Monitor Training
@@ -57,7 +62,7 @@ Update both evaluation configs to point to your trained model:
 **Edit `eval/configs/qwen3_vl_m2sv_sft_train.yaml`:**
 ```yaml
 model:
-  model_name: "/home/your_username/koa-ml/train/results/123456"  # Your job ID
+  model_name: "/mnt/lustre/koa/scratch/your_username/koa-ml/train/results/123456"  # Your job ID
   dtype: "float16"
   device_map: "auto"
 ```
@@ -65,7 +70,7 @@ model:
 **Edit `eval/configs/qwen3_vl_m2sv_sft_test.yaml`:**
 ```yaml
 model:
-  model_name: "/home/your_username/koa-ml/train/results/123456"  # Your job ID
+  model_name: "/mnt/lustre/koa/scratch/your_username/koa-ml/train/results/123456"  # Your job ID
   dtype: "float16"
   device_map: "auto"
 ```
@@ -106,7 +111,7 @@ eval/results/<test_job_id>/summary.json
 Example summary.json:
 ```json
 {
-  "model": "/home/username/koa-ml/train/results/123456",
+  "model": "/mnt/lustre/koa/scratch/username/koa-ml/train/results/123456",
   "dataset": "yosubshin/m2sv-sft",
   "split": "train",
   "total_samples": 1000,
@@ -204,7 +209,7 @@ model:
 **Solution**: Check the training job ID and update config:
 ```yaml
 model:
-  model_name: "/home/mburiek/koa-ml/train/results/YOUR_JOB_ID"
+  model_name: "/mnt/lustre/koa/scratch/mburiek/koa-ml/train/results/YOUR_JOB_ID"
 ```
 
 ### Dataset Not Loading
@@ -228,4 +233,4 @@ After completing this experiment:
 
 ---
 
-**Questions or issues?** Check job logs in `train/results/<job_id>/job.log` and `eval/results/<job_id>/job.log`
+**Questions or issues?** Check job logs in `$KOA_ML_DATA_ROOT/train/results/<job_id>/job.log` and `$KOA_ML_DATA_ROOT/eval/results/<job_id>/job.log`

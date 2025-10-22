@@ -16,12 +16,18 @@ class Config:
     user: str
     host: str
     identity_file: Optional[Path] = None
-    remote_workdir: Path = Path("~/koa-ml")
+    remote_code_dir: Path = Path("~/koa-ml")
+    remote_data_dir: Path = Path()
     proxy_command: Optional[str] = None
 
     @property
     def login(self) -> str:
         return f"{self.user}@{self.host}"
+
+    @property
+    def remote_workdir(self) -> Path:
+        """Backward compatible alias for the legacy field name."""
+        return self.remote_code_dir
 
 
 PathLikeOrStr = Union[os.PathLike[str], str]
@@ -49,6 +55,7 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         "host": os.getenv("KOA_HOST"),
         "identity_file": os.getenv("KOA_IDENTITY_FILE"),
         "remote_workdir": os.getenv("KOA_REMOTE_WORKDIR"),
+        "remote_data_dir": os.getenv("KOA_REMOTE_DATA_DIR"),
         "proxy_command": os.getenv("KOA_PROXY_COMMAND"),
     }
 
@@ -70,10 +77,18 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
                 "Update the path or remove the identity_file setting to rely on your SSH defaults."
             )
 
+    remote_code_dir = Path(data.get("remote_workdir", "~/koa-ml"))
+    configured_data_dir = data.get("remote_data_dir")
+    default_data_dir = Path(
+        configured_data_dir
+        or f"/mnt/lustre/koa/scratch/{data['user']}/koa-ml"
+    )
+
     return Config(
         user=data["user"],
         host=data["host"],
         identity_file=identity_path,
-        remote_workdir=Path(data.get("remote_workdir", "~/koa-ml")),
+        remote_code_dir=remote_code_dir,
+        remote_data_dir=default_data_dir,
         proxy_command=data.get("proxy_command") or None,
     )

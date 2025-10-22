@@ -5,9 +5,12 @@ Get started with training and evaluating models on KOA in 5 minutes.
 ## Setup (One Time)
 
 ```bash
-# 1. Install dependencies
+# 1. Install dependencies (local)
 source .venv/bin/activate
 pip install -e ".[ml]"
+
+# 2. Prepare remote storage (code in home, results on scratch)
+koa-ml storage setup --link
 ```
 
 > Setting up on KOA? Start an interactive session (`srun -p gpu-sandbox --gres=gpu:1 --mem=8G -t 0-00:30 --pty /bin/bash`), then run
@@ -70,11 +73,21 @@ koa-ml jobs
 koa-ml cancel <job_id>
 ```
 
+### Inspect Results
+
+```bash
+# List recent training outputs on KOA scratch
+koa-ml results list --kind train
+
+# Download an evaluation result to your machine
+koa-ml results pull 123456 --kind eval --dest ./artifacts/eval-123456
+```
+
 ## What Gets Created
 
-After training:
+After training (on KOA scratch):
 ```
-train/results/<job_id>/
+/mnt/lustre/koa/scratch/<user>/koa-ml/train/results/<job_id>/
 |-- adapter_model.safetensors  # LoRA weights
 |-- adapter_config.json        # LoRA config
 |-- tokenizer_config.json      # Tokenizer metadata
@@ -82,9 +95,9 @@ train/results/<job_id>/
 `-- job.log                    # SLURM job log
 ```
 
-After evaluation:
+After evaluation (on KOA scratch):
 ```
-eval/results/<job_id>/
+/mnt/lustre/koa/scratch/<user>/koa-ml/eval/results/<job_id>/
 |-- mmlu_results.json          # Benchmark scores
 |-- mmlu_results.csv           # Optional CSV export
 `-- job.log                    # SLURM job log
@@ -92,9 +105,12 @@ eval/results/<job_id>/
 
 Job logs:
 ```
-train/results/<job_id>/job.log      # Training logs
-eval/results/<job_id>/job.log      # Evaluation logs
+/mnt/lustre/koa/scratch/<user>/koa-ml/train/results/<job_id>/job.log
+/mnt/lustre/koa/scratch/<user>/koa-ml/eval/results/<job_id>/job.log
 ```
+
+If you enabled symlinks with `koa-ml storage setup --link`, the same locations
+are reachable under `~/koa-ml/train/results/<job_id>` and `~/koa-ml/eval/results/<job_id>`.
 
 ## Next Steps
 
@@ -196,7 +212,7 @@ koa-ml check
 
 1. **Start small**: Test with SmolLM before expensive runs
 2. **Use QLoRA**: If you hit memory issues
-3. **Check logs**: SSH to KOA and inspect `train/results/{job_id}/job.log`
+3. **Check logs**: SSH to KOA and inspect `/mnt/lustre/koa/scratch/<user>/koa-ml/train/results/{job_id}/job.log`
 4. **Save configs**: Commit your configs to git for reproducibility
 5. **Monitor training**: Look for steady loss decrease in logs
 

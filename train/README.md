@@ -2,6 +2,12 @@
 
 This directory contains configurations and scripts for fine-tuning language models on the KOA HPC cluster.
 
+> **Storage reminder**: Run `koa-ml storage setup --link` so checkpoints and
+> logs land on `/mnt/lustre/koa/scratch/<user>/koa-ml` with symlinks in
+> `~/koa-ml/train/results`. If you prefer explicit paths, set
+> `export KOA_ML_DATA_ROOT=/mnt/lustre/koa/scratch/$USER/koa-ml` when working on
+> KOA.
+
 ## Quick Start
 
 ### 1. Install Dependencies
@@ -201,13 +207,14 @@ koa-ml jobs
 
 # View job output and results
 # SSH to KOA and check:
-# - train/results/{job_id}/job.log for logs
-# - train/results/{job_id}/ for model checkpoints and outputs
+# - $KOA_ML_DATA_ROOT/train/results/{job_id}/job.log for logs
+# - $KOA_ML_DATA_ROOT/train/results/{job_id}/ for model checkpoints and outputs
 ```
 
 ## Output Structure
 
-After training, your results will be in `train/results/{job_id}/`:
+After training, your results will be in `$KOA_ML_DATA_ROOT/train/results/{job_id}/`
+(`~/koa-ml/train/results/{job_id}` if you created the symlink):
 
 ```
 train/results/{job_id}/
@@ -252,7 +259,7 @@ print(tokenizer.decode(outputs[0]))
 2. **Check memory**: Monitor GPU memory with `nvidia-smi` in job outputs
 3. **Use QLoRA**: If you hit OOM errors, switch to QLoRA config
 4. **Save often**: Set `save_steps` to checkpoint frequently
-5. **Monitor logs**: Check `train/results/{job_id}/job.log` for errors
+5. **Monitor logs**: Check `$KOA_ML_DATA_ROOT/train/results/{job_id}/job.log` for errors
 
 ## Troubleshooting
 

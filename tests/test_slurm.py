@@ -24,7 +24,8 @@ def mock_config():
     return Config(
         user="testuser",
         host="koa.its.hawaii.edu",
-        remote_workdir=Path("/home/testuser/koa-ml"),
+        remote_code_dir=Path("/home/testuser/koa-ml"),
+        remote_data_dir=Path("/mnt/lustre/koa/scratch/testuser/koa-ml"),
     )
 
 
@@ -37,11 +38,22 @@ class TestEnsureRemoteWorkspace:
 
         ensure_remote_workspace(mock_config)
 
-        mock_run_ssh.assert_called_once()
-        call_args = mock_run_ssh.call_args[0]
-        assert call_args[0] == mock_config
-        assert "mkdir" in call_args[1]
-        assert "-p" in call_args[1]
+        assert mock_run_ssh.call_count == 4
+        called_commands = []
+        for call in mock_run_ssh.call_args_list:
+            _config_arg, command, *rest = call.args
+            assert _config_arg is mock_config
+            called_commands.append(
+                " ".join(command) if isinstance(command, list) else command
+            )
+        targets = {
+            str(mock_config.remote_code_dir),
+            str(mock_config.remote_data_dir),
+            f"{mock_config.remote_data_dir}/train/results",
+            f"{mock_config.remote_data_dir}/eval/results",
+        }
+        for target in targets:
+            assert any(target in cmd for cmd in called_commands)
 
 
 class TestSubmitJob:
@@ -66,11 +78,14 @@ class TestSubmitJob:
         assert job_id == "12345"
         mock_copy.assert_called_once()
         # Verify sbatch was called
-        sbatch_call = [c for c in mock_run_ssh.call_args_list if "sbatch" in str(c)]
-        assert len(sbatch_call) > 0
-        call_args = sbatch_call[-1].args[1]
-        assert "--partition" in call_args
-        assert "kill-shared" in call_args
+        sbatch_call = mock_run_ssh.call_args_list[-1]
+        command = sbatch_call.args[1]
+        assert command[0] == "env"
+        assert any(str(mock_config.remote_code_dir) in item for item in command if isinstance(item, str))
+        assert any(str(mock_config.remote_data_dir) in item for item in command if isinstance(item, str))
+        assert "sbatch" in command
+        assert "--partition" in command
+        assert "kill-shared" in command
 
     def test_submit_job_with_sbatch_args(self, mock_config, mocker, tmp_path):
         """Test job submission with additional sbatch arguments."""
@@ -89,11 +104,12 @@ class TestSubmitJob:
 
         assert job_id == "12345"
         # Check that sbatch was called with the right args
-        call_args = mock_run_ssh.call_args_list[-1].args[1]
-        assert "--partition" in call_args
-        assert "gpu" in call_args
-        assert "kill-shared" not in call_args
-        assert "--gres=gpu:1" in call_args
+        command = mock_run_ssh.call_args_list[-1].args[1]
+        assert command[0] == "env"
+        assert "--partition" in command
+        assert "gpu" in command
+        assert "kill-shared" not in command
+        assert "--gres=gpu:1" in command
 
     def test_submit_job_with_remote_name(self, mock_config, mocker, tmp_path):
         """Test job submission with custom remote filename."""

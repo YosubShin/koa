@@ -154,7 +154,13 @@ def select_best_gpu(config: Config, partition: str = DEFAULT_PARTITION) -> str:
 
 
 def ensure_remote_workspace(config: Config) -> None:
-    run_ssh(config, ["mkdir", "-p", str(config.remote_workdir)])
+    run_ssh(config, ["mkdir", "-p", str(config.remote_code_dir)])
+
+    data_root = str(config.remote_data_dir)
+    if data_root not in {"", "."}:
+        run_ssh(config, ["mkdir", "-p", data_root])
+        run_ssh(config, ["mkdir", "-p", f"{data_root}/train/results"])
+        run_ssh(config, ["mkdir", "-p", f"{data_root}/eval/results"])
 
 
 def submit_job(
@@ -181,10 +187,15 @@ def submit_job(
 
     ensure_remote_workspace(config)
 
-    remote_script = config.remote_workdir / (remote_name or local_job_script.name)
+    remote_script = config.remote_code_dir / (remote_name or local_job_script.name)
     copy_to_remote(config, local_job_script, remote_script)
 
-    args = ["sbatch"]
+    args = [
+        "env",
+        f"KOA_ML_CODE_ROOT={config.remote_code_dir}",
+        f"KOA_ML_DATA_ROOT={config.remote_data_dir}",
+        "sbatch",
+    ]
     sbatch_args_list = list(sbatch_args or [])
 
     # Add default partition if not specified

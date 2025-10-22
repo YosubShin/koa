@@ -2,6 +2,12 @@
 
 This guide covers the complete workflow for training and evaluating language models on the KOA HPC cluster. The system is inspired by [oumi](https://github.com/oumi-ai/oumi), [VLMEvalKit](https://github.com/open-compass/VLMEvalKit), and [Tinker Cookbook](https://github.com/ThinkingMachinesLab/tinker-cookbook).
 
+> **Storage tip**: Run `koa-ml storage setup --link` once after configuring your
+> account. This creates the scratch data root at
+> `/mnt/lustre/koa/scratch/<user>/koa-ml` and symlinks
+> `~/koa-ml/train|eval/results` to those locations. For ad-hoc shell commands you
+> can also set `export KOA_ML_DATA_ROOT=/mnt/lustre/koa/scratch/$USER/koa-ml`.
+
 ## System Overview
 
 ```
@@ -148,7 +154,7 @@ koa-ml jobs
 
 # SSH to KOA to check detailed logs
 ssh koa.its.hawaii.edu
-tail -f ~/koa-ml/train/results/<JOB_ID>/job.log
+tail -f $KOA_ML_DATA_ROOT/train/results/<JOB_ID>/job.log
 ```
 
 #### Step 4: Evaluate Base Model

@@ -5,8 +5,8 @@
 #SBATCH --time=04:00:00
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=8
-#SBATCH --output=/home/%u/koa-ml/eval/results/%j/job.log
-#SBATCH --error=/home/%u/koa-ml/eval/results/%j/job.log
+#SBATCH --output=/mnt/lustre/koa/scratch/%u/koa-ml/eval/results/%j/job.log
+#SBATCH --error=/mnt/lustre/koa/scratch/%u/koa-ml/eval/results/%j/job.log
 
 set -euo pipefail
 
@@ -23,18 +23,22 @@ cleanup() {
 }
 trap cleanup EXIT ERR
 
-REMOTE_WORKDIR="${KOA_ML_WORKDIR:-$HOME/koa-ml}"
-if [ ! -d "$REMOTE_WORKDIR" ]; then
-  echo "Remote workdir not found at $REMOTE_WORKDIR" >&2
+REMOTE_CODE_ROOT="${KOA_ML_CODE_ROOT:-${KOA_ML_WORKDIR:-$HOME/koa-ml}}"
+REMOTE_DATA_ROOT="${KOA_ML_DATA_ROOT:-/mnt/lustre/koa/scratch/$USER/koa-ml}"
+
+if [ ! -d "$REMOTE_CODE_ROOT" ]; then
+  echo "Remote code directory not found at $REMOTE_CODE_ROOT" >&2
   exit 1
 fi
-cd "$REMOTE_WORKDIR"
+
+mkdir -p "$REMOTE_DATA_ROOT/eval/results"
+cd "$REMOTE_CODE_ROOT"
 
 # Load environment variables (HF_TOKEN, WANDB_API_KEY, etc.)
-if [ -f "$REMOTE_WORKDIR/.env" ]; then
+if [ -f "$REMOTE_CODE_ROOT/.env" ]; then
   echo "Loading environment from .env file..."
   set -a  # automatically export all variables
-  source "$REMOTE_WORKDIR/.env"
+  source "$REMOTE_CODE_ROOT/.env"
   set +a
 else
   echo "Warning: No .env file found. HuggingFace and W&B tokens may not be available."
@@ -42,14 +46,14 @@ else
 fi
 
 # Create job-specific results directory
-RESULTS_DIR="$REMOTE_WORKDIR/eval/results/${SLURM_JOB_ID}"
+RESULTS_DIR="$REMOTE_DATA_ROOT/eval/results/${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
 
 # Copy version control files to job directory
 echo "Copying version control files..."
-SLURM_SCRIPT_PATH="$REMOTE_WORKDIR/eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_train.slurm"
-PYTHON_SCRIPT_PATH="$REMOTE_WORKDIR/eval/qwen3_vl_eval.py"
-CONFIG_PATH="$REMOTE_WORKDIR/eval/configs/qwen3_vl_m2sv_sft_train.yaml"
+SLURM_SCRIPT_PATH="$REMOTE_CODE_ROOT/eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_train.slurm"
+PYTHON_SCRIPT_PATH="$REMOTE_CODE_ROOT/eval/qwen3_vl_eval.py"
+CONFIG_PATH="$REMOTE_CODE_ROOT/eval/configs/qwen3_vl_m2sv_sft_train.yaml"
 
 cp "$SLURM_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy SLURM script"
 cp "$PYTHON_SCRIPT_PATH" "$RESULTS_DIR/" 2>/dev/null || echo "Warning: Could not copy Python script"
@@ -83,7 +87,7 @@ fi
 export HF_HUB_ENABLE_HF_TRANSFER=0
 export HF_HUB_DISABLE_HF_TRANSFER=1
 export HF_HUB_DISABLE_TELEMETRY=1
-VENV_PATH="${KOA_ML_VENV:-$HOME/koa-ml/.venv}"
+VENV_PATH="${KOA_ML_VENV:-$REMOTE_CODE_ROOT/.venv}"
 if [ ! -d "$VENV_PATH" ]; then
   echo "Virtualenv not found at $VENV_PATH" >&2
   exit 1

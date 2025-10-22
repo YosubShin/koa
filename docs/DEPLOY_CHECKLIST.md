@@ -21,6 +21,9 @@ ls -la train/scripts/qwen3/
 # Replace USERNAME with your KOA username
 export KOA_USER="USERNAME"
 
+# Scratch data root (results, logs, checkpoints)
+export KOA_ML_DATA_ROOT="/mnt/lustre/koa/scratch/${KOA_USER}/koa-ml"
+
 # Sync repository (first time or full update)
 rsync -avz --exclude='.git' --exclude='.venv' --exclude='*.pyc' \
   ./ ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/
@@ -57,7 +60,7 @@ sbatch train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
 squeue -u $USER
 
 # Monitor output (replace JOBID)
-tail -f train/results/JOBID/job.log
+tail -f ${KOA_ML_DATA_ROOT}/train/results/JOBID/job.log
 ```
 
 ## Verification Checklist
@@ -70,7 +73,7 @@ Before submitting production jobs:
 - [ ] `.env` file configured with `HF_TOKEN`
 - [ ] Virtual environment works on KOA
 - [ ] Quickstart job completes successfully
-- [ ] Results appear in `train/results/JOBID/`
+- [ ] Results appear in `${KOA_ML_DATA_ROOT}/train/results/JOBID/`
 
 ## Available Jobs
 
@@ -124,11 +127,11 @@ rsync -avz --exclude='.git' --exclude='.venv' \
 ```bash
 # From local machine
 # Download all results
-rsync -avz ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/train/results/ ./train/results/
-rsync -avz ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/eval/results/ ./eval/results/
+rsync -avz ${KOA_USER}@koa.its.hawaii.edu:${KOA_ML_DATA_ROOT}/train/results/ ./train/results/
+rsync -avz ${KOA_USER}@koa.its.hawaii.edu:${KOA_ML_DATA_ROOT}/eval/results/ ./eval/results/
 
 # Download specific job
-rsync -avz ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/train/results/JOBID/ ./train/results/JOBID/
+rsync -avz ${KOA_USER}@koa.its.hawaii.edu:${KOA_ML_DATA_ROOT}/train/results/JOBID/ ./train/results/JOBID/
 ```
 
 ### Compare Results
@@ -149,8 +152,8 @@ cat comparison.md
 
 ```bash
 # Check logs
-cat train/results/JOBID/error.log
-cat train/results/JOBID/job.log
+cat ${KOA_ML_DATA_ROOT}/train/results/JOBID/error.log
+cat ${KOA_ML_DATA_ROOT}/train/results/JOBID/job.log
 
 # Common fixes:
 # 1. Check HF_TOKEN is set
@@ -201,10 +204,10 @@ sacct -u $USER --format=JobID,JobName,State,Elapsed
 
 ```bash
 # Watch output
-tail -f train/results/JOBID/job.log
+tail -f ${KOA_ML_DATA_ROOT}/train/results/JOBID/job.log
 
 # Check GPU usage
-grep "GPU memory" train/results/JOBID/job.log
+grep "GPU memory" ${KOA_ML_DATA_ROOT}/train/results/JOBID/job.log
 ```
 
 ### Cancel Job
@@ -230,9 +233,9 @@ Your job succeeded if:
 Check with:
 
 ```bash
-ls -lh train/results/JOBID/adapter_model.safetensors
-grep "Training complete" train/results/JOBID/job.log
-grep "Peak GPU memory" train/results/JOBID/job.log
+ls -lh ${KOA_ML_DATA_ROOT}/train/results/JOBID/adapter_model.safetensors
+grep "Training complete" ${KOA_ML_DATA_ROOT}/train/results/JOBID/job.log
+grep "Peak GPU memory" ${KOA_ML_DATA_ROOT}/train/results/JOBID/job.log
 ```
 
 ## Documentation
@@ -253,8 +256,8 @@ Local -> Validate -> Sync to KOA -> Setup (first time) -> Submit Job -> Monitor 
 1. **Validate**: `python scripts/validate_config.py --all`
 2. **Sync**: `rsync -avz ./ ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/`
 3. **Submit**: `sbatch train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm`
-4. **Monitor**: `tail -f train/results/JOBID/job.log`
-5. **Download**: `rsync -avz ${KOA_USER}@koa.its.hawaii.edu:~/koa-ml/train/results/JOBID/ ./train/results/JOBID/`
+4. **Monitor**: `tail -f ${KOA_ML_DATA_ROOT}/train/results/JOBID/job.log`
+5. **Download**: `rsync -avz ${KOA_USER}@koa.its.hawaii.edu:${KOA_ML_DATA_ROOT}/train/results/JOBID/ ./train/results/JOBID/`
 6. **Compare**: `python scripts/compare_results.py ...`
 
 ---
