@@ -15,7 +15,6 @@ generation:
   limit:
 
 output:
-  dir: "./eval/results/local/qwen3_vl_m2sv"
   save_predictions: true
 
 inference:
