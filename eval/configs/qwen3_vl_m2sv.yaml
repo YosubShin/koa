@@ -10,12 +10,11 @@ dataset:
   split: "train"
 
 generation:
-  max_new_tokens: 128
+  max_new_tokens: 4096
   temperature: 0.1
   limit:
 
 output:
-  dir: "./eval/results/local/qwen3_vl_m2sv"
   save_predictions: true
 
 inference:

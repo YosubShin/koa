@@ -48,6 +48,7 @@ fi
 # Create job-specific results directory
 RESULTS_DIR="$REMOTE_DATA_ROOT/eval/results/${SLURM_JOB_ID}"
 mkdir -p "$RESULTS_DIR"
+export KOA_RESULTS_DIR="$RESULTS_DIR"
 
 # Copy version control files to job directory
 echo "Copying version control files..."

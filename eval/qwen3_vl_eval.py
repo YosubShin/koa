@@ -36,6 +36,19 @@ os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
 os.environ.setdefault("HF_HUB_DISABLE_HF_TRANSFER", "1")
 
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+def _save_outputs(results: List[Dict[str, Any]], summary: Dict[str, Any], primary_dir: str) -> None:
+    """Save outputs to primary_dir only."""
+    os.makedirs(primary_dir, exist_ok=True)
+    results_path = os.path.join(primary_dir, "predictions.csv")
+    summary_path = os.path.join(primary_dir, "summary.json")
+
+    pd.DataFrame(results).to_csv(results_path, index=False)
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=2)
+
+    print(f"\nSaved predictions to: {results_path}")
+    print(f"Saved summary to: {summary_path}")
+
 
 
 @dataclass
@@ -92,7 +105,7 @@ def load_config(path: str) -> EvalConfig:
             or 1
         ),
         limit=generation_cfg.get("limit"),
-        output_dir=output_cfg.get("dir", "./eval/results/qwen3_vl_m2sv"),
+        output_dir=output_cfg.get("dir", os.environ.get("KOA_RESULTS_DIR", "./eval/results/qwen3_vl_m2sv")),
         save_predictions=output_cfg.get("save_predictions", True),
         backend=(inference_cfg.get("backend") or "hf").lower(),
         vllm_api_base=vllm_cfg.get("api_base"),
@@ -446,16 +459,7 @@ def evaluate_hf(cfg: EvalConfig) -> Dict[str, Any]:
     print("=" * 80)
 
     if cfg.save_predictions:
-        os.makedirs(cfg.output_dir, exist_ok=True)
-        results_path = os.path.join(cfg.output_dir, "predictions.csv")
-        summary_path = os.path.join(cfg.output_dir, "summary.json")
-
-        pd.DataFrame(results).to_csv(results_path, index=False)
-        with open(summary_path, "w") as f:
-            json.dump(summary, f, indent=2)
-
-        print(f"\nSaved predictions to: {results_path}")
-        print(f"Saved summary to: {summary_path}")
+        _save_outputs(results, summary, cfg.output_dir)
 
     del model
     del processor
@@ -629,14 +633,7 @@ def evaluate_vllm(cfg: EvalConfig) -> Dict[str, Any]:
     print("=" * 80)
 
     if cfg.save_predictions:
-        os.makedirs(cfg.output_dir, exist_ok=True)
-        results_path = os.path.join(cfg.output_dir, "predictions.csv")
-        summary_path = os.path.join(cfg.output_dir, "summary.json")
-        pd.DataFrame(results).to_csv(results_path, index=False)
-        with open(summary_path, "w") as f:
-            json.dump(summary, f, indent=2)
-        print(f"\nSaved predictions to: {results_path}")
-        print(f"Saved summary to: {summary_path}")
+        _save_outputs(results, summary, cfg.output_dir)
 
     return summary
 
