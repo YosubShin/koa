@@ -1,0 +1,51 @@
+# Evaluation config for sft_qwen3_4b on M2SV-SFT TRAIN split
+# Use this to check if the model is memorizing/fitting the training data
+#
+# USAGE:
+#   1. Update model_name below to point to your trained checkpoint directory
+#   2. Run: koa-ml submit eval/scripts/sft_qwen3_4b/eval_train.slurm
+
+model:
+  # Path to your trained model checkpoint
+  # Latest successful training: Job 8722507
+  model_name: "/mnt/lustre/koa/scratch/mburiek/koa-ml/train/results/8722507"
+
+  # Use float16 for faster inference (model was trained in bfloat16)
+  dtype: "float16"
+  device_map: "auto"
+
+dataset:
+  name: "yosubshin/m2sv-sft"
+  split: "train"  # Same split used for training - checking memorization
+  fallback_split: "train"
+
+generation:
+  max_new_tokens: 128
+  temperature: 0.1  # Low temperature for deterministic outputs
+
+  # Optional: Uncomment to test on a subset first
+  # limit: 50
+
+inference:
+  # Using HuggingFace Transformers backend
+  hf:
+    batch_size: 1  # Batch size for inference
+
+output:
+  dir: "./eval/results/local/sft_qwen3_4b_train"
+  save_predictions: true
+
+# Weights & Biases logging (optional)
+wandb:
+  enabled: true  # Set to false to disable W&B logging
+  # project: "koa-ml-eval"  # Optional: defaults to env WANDB_PROJECT or "koa-ml-eval"
+  # entity: "your-username"  # Optional: defaults to env WANDB_ENTITY
+  # run_name: "eval-sft-qwen3-4b-train"  # Optional: auto-generated if not provided
+  tags:
+    - "sft-qwen3-4b"
+    - "m2sv"
+    - "memorization-check"
+  notes: "Evaluating SFT Qwen3-4B on M2SV training split to check memorization"
+
+# Expected Result:
+# High accuracy (>90%) indicates good memorization/convergence on training data

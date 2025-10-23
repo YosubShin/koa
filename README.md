@@ -327,8 +327,8 @@ Checking for tokens:
 Let's test the complete setup with a quick training job!
 
 ```bash
-# Submit a quick test training job (runs for ~30 minutes)
-koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
+# Submit a smoke-test training job (set training.max_steps low in the config)
+koa-ml submit train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm
 
 # Check job status
 koa-ml jobs
@@ -347,7 +347,7 @@ JOBID|NAME|STATE|TIME|TIME_LIMIT|NODES|NODELIST(REASON)
 2. Navigate to your project (e.g., `koa-ml-experiments`)
 3. You should see your training run with live metrics!
 
-**Congratulations!** Your complete setup is done! 🎉
+**Congratulations!** Your complete setup is done!
 
 ---
 
@@ -358,27 +358,21 @@ Once you've completed the setup above, here's how to use koa-ml:
 ### Submit a Training Job
 
 ```bash
-# Quick test - Qwen3 0.6B LoRA (30 min)
-koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
-
-# Production - Qwen3 8B LoRA (12 hours)
-koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
-
-# Memory-efficient - Qwen3 14B QLoRA
-koa-ml submit train/scripts/qwen3/qlora/train_qwen3_14b_qlora.slurm
+# Qwen3-VL 4B LoRA (set training.max_steps in the config for quick tests)
+koa-ml submit train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm
 ```
 
 ### Submit an Evaluation Job
 
 ```bash
-# Quick evaluation
-koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
+# Baseline (pretrained model, before fine-tuning)
+koa-ml submit eval/scripts/sft_qwen3_4b/eval_base.slurm
 
-# Full evaluation
-koa-ml submit eval/scripts/qwen3/eval_qwen3_8b_full.slurm
+# Train split (memorization check after fine-tuning)
+koa-ml submit eval/scripts/sft_qwen3_4b/eval_train.slurm
 
-# Vision-language evaluation (Qwen3-VL)
-koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv.slurm
+# Test split (generalization check after fine-tuning)
+koa-ml submit eval/scripts/sft_qwen3_4b/eval_test.slurm
 ```
 
 ### Monitor Jobs
@@ -414,20 +408,10 @@ koa-ml refresh
 
 ## Documentation
 
-### Getting Started
-- **[docs/AUTH_SETUP.md](docs/AUTH_SETUP.md)** - Authentication and token management
-- **[docs/QUICKSTART.md](docs/QUICKSTART.md)** - 5-minute guide to training & evaluation
-- **[docs/QWEN3_QUICKREF.md](docs/QWEN3_QUICKREF.md)** - One-page Qwen3 reference
-
-### Detailed Guides
-- **[docs/QWEN3_GUIDE.md](docs/QWEN3_GUIDE.md)** - Complete Qwen3 training guide
-- **[docs/ML_GUIDE.md](docs/ML_GUIDE.md)** - Comprehensive ML workflow
-- **[train/README.md](train/README.md)** - Training deep dive
-- **[eval/README.md](eval/README.md)** - Evaluation deep dive
-
-### Development
-- **[docs/TESTING.md](docs/TESTING.md)** - Testing instructions
-- **[docs/DEPLOY_CHECKLIST.md](docs/DEPLOY_CHECKLIST.md)** - Deployment checklist
+- **[docs/QUICKSTART.md](docs/QUICKSTART.md)** — Complete setup, training, evaluation, and cleanup workflow
+- **[docs/TRAINING_BEST_PRACTICES.md](docs/TRAINING_BEST_PRACTICES.md)** — Patterns that keep SLURM and training scripts reliable
+- **[docs/M2SV_VLM_EXPERIMENT.md](docs/M2SV_VLM_EXPERIMENT.md)** — Step-by-step reproduction of the M2SV fine-tuning experiment
+- **[docs/CLEANUP_GUIDE.md](docs/CLEANUP_GUIDE.md)** — Storage management playbook for KOA scratch space
 
 ---
 
@@ -470,53 +454,48 @@ koa-ml refresh --exclude "*.pyc" --exclude "__pycache__"
 ```
 koa-ml/
 ├── configs/                    # Configuration system
-│   ├── datasets/              # Reusable dataset configs
-│   └── recipes/               # Pre-configured training recipes
-│       └── qwen3/             # Qwen3 model family
-│           ├── 0.6b/lora.yaml # 0.6B LoRA (quick test)
-│           ├── 4b/lora.yaml   # 4B LoRA
-│           ├── 8b/lora.yaml   # 8B LoRA
-│           ├── 8b/qlora.yaml  # 8B QLoRA (memory-efficient)
-│           └── 14b/qlora.yaml # 14B QLoRA
+│   ├── datasets/              # Reusable dataset definitions
+│   │   ├── alpaca_cleaned.yaml
+│   │   ├── custom_template.yaml
+│   │   └── dolly.yaml
+│   └── recipes/
+│       └── sft_qwen3_4b/
+│           └── sft_qwen3_4b.yaml
 │
 ├── docs/                       # Documentation
-│   ├── AUTH_SETUP.md          # Authentication guide
-│   ├── QUICKSTART.md          # Quick start guide
-│   ├── QWEN3_GUIDE.md         # Qwen3 guide
-│   └── ML_GUIDE.md            # ML workflow guide
+│   ├── CLEANUP_GUIDE.md        # Scratch storage cleanup playbook
+│   ├── M2SV_VLM_EXPERIMENT.md  # Experiment walkthrough
+│   ├── QUICKSTART.md           # Install/train/eval quickstart
+│   └── TRAINING_BEST_PRACTICES.md # SLURM and training tips
 │
 ├── eval/                       # Evaluation system
-│   ├── configs/               # Evaluation configs
+│   ├── configs/
+│   │   └── sft_qwen3_4b/
+│   │       ├── WANDB_GUIDE.md
+│   │       ├── eval_test.yaml
+│   │       ├── eval_train.yaml
+│   │       └── eval_train_quick.yaml
+│   ├── scripts/
+│   │   └── sft_qwen3_4b/
+│   │       ├── eval_test.slurm
+│   │       ├── eval_train.slurm
+│   │       └── sft_qwen3_4b.py    # Vision-language evaluation runner
 │   ├── results/               # Symlink to scratch results (via `koa-ml storage link`)
-│   │   └── <job_id>/          # Each job gets its own directory
-│   │       ├── predictions.csv
-│   │       ├── summary.json
-│   │       ├── job.log        # Combined stdout/stderr
-│   │       ├── eval_*.slurm   # SLURM script used
-│   │       ├── *.py           # Python script used
-│   │       └── *.yaml         # Config used
-│   ├── scripts/qwen3/         # SLURM job scripts
-│   ├── evaluate.py            # Standard benchmark eval
-│   └── qwen3_vl_eval.py      # Vision-language eval
+│   └── evaluate.py            # Benchmark entry point
 │
-├── train/                       # Training system
+├── train/                      # Training system
+│   ├── scripts/
+│   │   └── sft_qwen3_4b/
+│   │       ├── sft_qwen3_4b.py
+│   │       └── sft_qwen3_4b.slurm
 │   ├── results/               # Symlink to scratch results (via `koa-ml storage link`)
-│   │   └── <job_id>/          # Each job gets its own directory
-│   │       ├── checkpoint-*/  # Model checkpoints
-│   │       ├── logs/          # Training logs
-│   │       ├── job.log        # Combined stdout/stderr
-│   │       ├── train_*.slurm  # SLURM script used
-│   │       ├── train.py       # Python script used
-│   │       └── *.yaml         # Config used
-│   ├── scripts/qwen3/         # SLURM job scripts
-│   │   ├── lora/              # LoRA scripts
-│   │   └── qlora/             # QLoRA scripts
-│   └── train.py               # Training script
+│   └── train.py               # Local training helper
 │
 ├── scripts/                    # Utilities
-│   ├── setup_koa_env.sh       # KOA environment setup
-│   ├── compare_results.py     # Compare model performance
-│   └── validate_config.py     # Validate configs
+│   ├── cleanup_storage.sh
+│   ├── run_vllm_server.sh
+│   ├── setup_koa_env.sh
+│   └── wait_for_vllm.sh
 │
 ├── src/koa_ml/                 # CLI implementation
 │   ├── __main__.py            # Main CLI entry point
@@ -542,9 +521,9 @@ Every job automatically saves the exact code used:
 ├── job.log                          # All output (stdout + stderr)
 ├── predictions.csv                  # Results
 ├── summary.json                     # Metrics
-├── eval_qwen3_vl_m2sv.slurm        # SLURM script used
-├── qwen3_vl_eval.py                # Python script used
-└── qwen3_vl_m2sv.yaml              # Config used
+├── eval_train.slurm                # SLURM script used
+├── sft_qwen3_4b.py                 # Python script used
+└── eval_train.yaml                 # Config used
 ```
 
 You can always reproduce any run by looking at these files!
@@ -660,8 +639,8 @@ source scripts/setup_koa_env.sh
 
 ## Getting Help
 
-- **Documentation**: See [docs/](docs/) directory
-- **Quick Reference**: [docs/QWEN3_QUICKREF.md](docs/QWEN3_QUICKREF.md)
+- **Documentation**: Start with [docs/QUICKSTART.md](docs/QUICKSTART.md)
+- **Training Tips**: [docs/TRAINING_BEST_PRACTICES.md](docs/TRAINING_BEST_PRACTICES.md)
 - **KOA Support**: uh-hpc-help@lists.hawaii.edu (include job ID and error logs)
 - **Issues**: Open an issue in this repository
 

@@ -1,0 +1,48 @@
+model:
+  model_name: "Qwen/Qwen3-VL-4B-Instruct"
+  model_max_length: 4096  # Qwen3-VL supports up to 4096 tokens
+  dtype: "bfloat16"
+  use_cache: false
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_use_double_quant: true
+  min_pixels: 16384  # Minimum resolution: 16 * 32 * 32
+  max_pixels: 589824  # Maximum resolution: 576 * 32 * 32
+  freeze_vision_tower: true  # Keep vision encoder frozen during LoRA tuning
+
+data:
+  train_dataset:
+    dataset_name: "yosubshin/m2sv-sft"
+    split: "train"
+
+training:
+  trainer_type: "standard"  # Hugging Face Trainer for VLM
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16  # Effective batch size: 16
+  learning_rate: 2.0e-05
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+  max_steps: 5000
+  save_steps: 500
+  eval_steps: 500
+  logging_steps: 10
+  save_total_limit: 3
+  output_dir: "./train/results/local/qwen3_vl_4b_lora_m2sv"
+  bf16: true
+  gradient_checkpointing: true
+  optim: "adamw_torch"
+  report_to: "wandb"
+
+peft:
+  type: "lora"
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.0
+  lora_target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+  bias: "none"

@@ -1,229 +1,234 @@
-# Quick Start: Fine-Tuning & Evaluation on KOA
+# KOA-ML Quickstart
 
-Get started with training and evaluating models on KOA in 5 minutes.
+This guide walks through the minimum set of steps needed to install the `koa-ml` CLI, prepare the KOA cluster environment, launch supervised fine-tuning jobs, evaluate checkpoints, and keep storage tidy. It distills the project documentation into a single reference with direct, reproducible commands.
 
-## Setup (One Time)
+## Overview
+- Submit and monitor SLURM jobs on KOA from your local workstation
+- Fine-tune Qwen3-VL-4B with the M2SV-SFT dataset using battle-tested scripts
+- Evaluate checkpoints with automated logging to Weights & Biases
+- Manage remote storage so scratch space never becomes the bottleneck
 
+## Prerequisites
+- KOA account with Duo MFA access (`koa.its.hawaii.edu`)
+- macOS or Linux workstation with Python 3.9+, Git, and SSH
+- SSH key-based access to KOA (`ssh koa.its.hawaii.edu` without a password prompt)
+- Optional but recommended: Hugging Face account (for gated models) and W&B account for experiment tracking
+
+## 1. Install Locally
 ```bash
-# 1. Install dependencies (local)
+# Clone and create a virtual environment
+git clone <repo-url> koa-ml
+cd koa-ml
+python3 -m venv .venv
 source .venv/bin/activate
+
+# Install CLI and ML extras
+pip install --upgrade pip setuptools wheel
 pip install -e ".[ml]"
-
-# 2. Prepare remote storage (code in home, results on scratch)
-koa-ml storage setup --link
 ```
 
-> Setting up on KOA? Start an interactive session (`srun -p gpu-sandbox --gres=gpu:1 --mem=8G -t 0-00:30 --pty /bin/bash`), then run
-> `source scripts/setup_koa_env.sh` inside the repo. The script tries the standard KOA Python module (3.11.5) with fallbacks, attempts to load `system/CUDA/12.2.0`, and will automatically retry `pip install` without flash-attn if nvcc isn't available. Override modules if needed (e.g.
-> `PYTHON_MODULE=lang/Python/3.10.8-GCCcore-12.2.0 CUDA_MODULE= source scripts/setup_koa_env.sh`).
-> The SLURM jobs expect the venv at `$HOME/koa-ml/.venv` (set `KOA_ML_VENV` to override), load the selected Python module (`KOA_PYTHON_MODULE`), and execute from `$HOME/koa-ml` unless `KOA_ML_WORKDIR` is provided.
+If you use multiple projects, consider `direnv` or `uv` to manage virtual environments automatically.
 
-This installs:
-- PyTorch, Transformers, Accelerate (core ML)
-- PEFT, TRL (training)
-- lm-eval (benchmarking)
-- bitsandbytes, flash-attn (optimizations; Linux only extras and skipped on macOS)
-
-## Test Locally (Optional)
-
+## 2. Configure the CLI
 ```bash
-# Quick training test (requires GPU)
-python train/train.py \
-  --config configs/recipes/qwen3/0.6b/lora.yaml \
-  --max_steps 10
-
-# Quick evaluation test (requires GPU)
-python eval/evaluate.py \
-  --config eval/configs/qwen3_quickstart.yaml \
-  --limit 10
+mkdir -p ~/.config/koa-ml
+cp .koa-config.example.yaml ~/.config/koa-ml/config.yaml
 ```
 
-## Run on KOA
+Edit `~/.config/koa-ml/config.yaml` with your details:
 
-### Fine-Tuning
-
-```bash
-# Quick test (30 min)
-koa-ml submit train/scripts/qwen3/lora/train_qwen3_0.6b_quickstart.slurm
-
-# Qwen3 8B LoRA (12 hours)
-koa-ml submit train/scripts/qwen3/lora/train_qwen3_8b_lora.slurm
-
-# Qwen3 8B QLoRA - memory efficient (12 hours)
-koa-ml submit train/scripts/qwen3/qlora/train_qwen3_8b_qlora.slurm
+```yaml
+user: "your_koa_username"
+host: "koa.its.hawaii.edu"
+identity_file: "~/.ssh/id_ed25519"
+remote_workdir: "/home/your_koa_username/koa-ml"
+remote_data_dir: "/mnt/lustre/koa/scratch/your_koa_username/koa-ml"
 ```
 
-### Evaluation
+Then create the remote directory layout and validate connectivity:
 
 ```bash
-# Quick test (30 min)
-koa-ml submit eval/scripts/qwen3/eval_qwen3_quickstart.slurm
-
-# Full MMLU benchmark (2 hours)
-koa-ml submit eval/scripts/qwen3/eval_qwen3_8b_full.slurm
+koa-ml storage setup --link   # Creates ~/koa-ml + scratch symlinks
+koa-ml check                  # Verifies SSH, rsync, and SLURM access
 ```
 
-### Monitor Jobs
+## 3. Prepare the KOA Environment
+1. Sync your current code: `koa-ml refresh`
+2. SSH to KOA and start an interactive GPU session (adjust partition/time as needed):
+   ```bash
+   ssh koa.its.hawaii.edu
+   srun -p gpu-sandbox --gres=gpu:1 --mem=32G --cpus-per-task=4 --time=02:00:00 --pty /bin/bash
+   ```
+3. Inside the session, install the project environment:
+   ```bash
+   cd ~/koa-ml
+   source scripts/setup_koa_env.sh
+   ```
+   The script loads KOA modules, recreates `.venv`, installs PyTorch with CUDA 12.1 wheels, and installs `koa-ml` with the `[ml]` extras. Re-run it whenever PyTorch or Transformers needs to be refreshed.
+4. Exit the session once the environment is built.
 
+## 4. Manage Authentication Tokens
 ```bash
-# Check job status
+cp .env.example .env
+# Edit .env and add:
+#   HF_TOKEN=<your huggingface token>
+#   WANDB_API_KEY=<your wandb api key>
+
+koa-ml auth --sync   # Uploads .env to KOA
+koa-ml auth --check  # Confirms tokens are available on the cluster
+```
+
+Job scripts automatically source `.env` before launching Python so credentials are available to Hugging Face and W&B without hard-coding secrets.
+
+## 5. Everyday CLI Reference
+| Command | Purpose |
+|---------|---------|
+| `koa-ml refresh` | Rsync the current directory to KOA (respects default excludes) |
+| `koa-ml submit <script.slurm>` | Submit a SLURM batch job |
+| `koa-ml jobs` | Show running and pending jobs for your KOA account |
+| `koa-ml cancel <job_id>` | Cancel a specific job |
+| `koa-ml storage link` | Recreate symlinks from `~/koa-ml` to scratch results |
+| `koa-ml results list --kind train` | List recent training jobs and their IDs |
+| `koa-ml results pull <id> --kind eval` | Download an eval result directory locally |
+| `koa-ml auth --sync / --check` | Manage Hugging Face and W&B tokens |
+
+Use `--config` to point at alternative configuration files if you maintain multiple KOA profiles.
+
+## 6. Train Qwen3-VL-4B on M2SV
+
+### Choose Your Assets
+| Component | Path | Notes |
+|-----------|------|-------|
+| SLURM script | `train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm` | 1× GPU, 48h walltime, 64G RAM |
+| Python entry point | `train/scripts/sft_qwen3_4b/sft_qwen3_4b.py` | LoRA fine-tuning script with image/text processors preconfigured |
+| YAML recipe | `configs/recipes/sft_qwen3_4b/sft_qwen3_4b.yaml` | Defines dataset, optimizer, LoRA rank, and logging defaults |
+
+The SLURM script copies itself, the Python script, and the active config into the results folder to guarantee reproducibility.
+
+### Launch Training
+```bash
+koa-ml refresh
+koa-ml submit train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm
+```
+
+Monitor progress:
+```bash
 koa-ml jobs
-
-# Cancel a job
-koa-ml cancel <job_id>
+ssh koa.its.hawaii.edu "tail -f /mnt/lustre/koa/scratch/$USER/koa-ml/train/results/<job_id>/job.log"
 ```
 
-### Inspect Results
+Weights & Biases logging starts automatically (see the job log for the run URL). Expect ~4–6 hours on a single A100/L40 GPU for 3 epochs with gradient accumulation.
+
+### Customize the Run
+- Edit `configs/recipes/sft_qwen3_4b/sft_qwen3_4b.yaml` to change LoRA rank, learning rate, or logging cadence.
+- Switch datasets by updating `data.train_dataset.dataset_name`.
+- For quick smoke tests, lower `max_steps`, raise `logging_steps`, and disable W&B with `report_to: "none"`.
+
+### Best Practices Before Submitting
+- `koa-ml refresh` right before submission so scripts/configs match what runs remotely.
+- Keep SSH ControlMaster enabled (see `~/.ssh/config`) to avoid repeated Duo prompts.
+- Gradient checkpointing plus LoRA is the default; the Python script already disables `use_cache`, suppresses known transformer warnings, and sets `Image.MAX_IMAGE_PIXELS = None`.
+- SLURM scripts export `HF_HUB_DISABLE_HF_TRANSFER=1` and `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128`; retain those lines if you clone the pattern.
+- Pre-flight checklist:
+  - Virtualenv exists at `~/koa-ml/.venv` on KOA
+  - `.env` contains valid `HF_TOKEN` and `WANDB_API_KEY`
+  - Desired config file is committed or otherwise backed up
+  - Scratch storage has at least 20 GB free (`du -sh /mnt/lustre/koa/scratch/$USER/koa-ml`)
+
+## 7. Evaluate Checkpoints
+
+Evaluation scripts live under `eval/scripts/sft_qwen3_4b/` and reuse the same environment.
+
+1. Update the model path in the desired config:
+   ```yaml
+   # eval/configs/sft_qwen3_4b/eval_train.yaml
+   model:
+     model_name: "/mnt/lustre/koa/scratch/<user>/koa-ml/train/results/<train_job_id>"
+     dtype: "float16"
+     device_map: "auto"
+   ```
+2. Sync changes: `koa-ml refresh`
+3. Submit an evaluation job:
+   ```bash
+   koa-ml submit eval/scripts/sft_qwen3_4b/eval_base.slurm    # Baseline (pretrained model)
+   koa-ml submit eval/scripts/sft_qwen3_4b/eval_train.slurm   # Memorization check
+   koa-ml submit eval/scripts/sft_qwen3_4b/eval_test.slurm    # Generalization check
+   ```
+
+During evaluation you will see a W&B URL in the log plus streaming accuracy updates every few batches. Results are written to:
+
+```
+/mnt/lustre/koa/scratch/<user>/koa-ml/eval/results/<eval_job_id>/
+├── job.log
+├── summary.json
+├── predictions.csv
+├── eval_train.yaml (or eval_test.yaml)
+└── sft_qwen3_4b.py
+```
+
+`summary.json` exposes overall accuracy, per-task metrics, and metadata so you can compare checkpoints programmatically.
+
+## 8. Manage Results and Storage
+
+Training and evaluation outputs can accumulate quickly. Use the provided cleanup helpers to stay under KOA scratch quotas.
 
 ```bash
-# List recent training outputs on KOA scratch
-koa-ml results list --kind train
+# Inspect usage
+ssh koa "du -sh /mnt/lustre/koa/scratch/$USER/koa-ml"
 
-# Download an evaluation result to your machine
-koa-ml results pull 123456 --kind eval --dest ./artifacts/eval-123456
+# Dry run: see what would be deleted
+ssh koa "bash ~/koa-ml/scripts/cleanup_storage.sh --dry-run"
+
+# Keep the five newest training runs, delete older ones
+ssh koa "bash ~/koa-ml/scripts/cleanup_storage.sh --train-only --keep-latest 5"
+
+# Delete everything (no undo!)
+ssh koa "bash ~/koa-ml/scripts/cleanup_storage.sh --all"
 ```
 
-## What Gets Created
-
-After training (on KOA scratch):
-```
-/mnt/lustre/koa/scratch/<user>/koa-ml/train/results/<job_id>/
-|-- adapter_model.safetensors  # LoRA weights
-|-- adapter_config.json        # LoRA config
-|-- tokenizer_config.json      # Tokenizer metadata
-|-- training_args.bin          # Trainer state
-`-- job.log                    # SLURM job log
-```
-
-After evaluation (on KOA scratch):
-```
-/mnt/lustre/koa/scratch/<user>/koa-ml/eval/results/<job_id>/
-|-- mmlu_results.json          # Benchmark scores
-|-- mmlu_results.csv           # Optional CSV export
-`-- job.log                    # SLURM job log
-```
-
-Job logs:
-```
-/mnt/lustre/koa/scratch/<user>/koa-ml/train/results/<job_id>/job.log
-/mnt/lustre/koa/scratch/<user>/koa-ml/eval/results/<job_id>/job.log
-```
-
-If you enabled symlinks with `koa-ml storage setup --link`, the same locations
-are reachable under `~/koa-ml/train/results/<job_id>` and `~/koa-ml/eval/results/<job_id>`.
-
-## Next Steps
-
-### Customize Training
-
-Edit config files in [configs/recipes/qwen3/](../configs/recipes/qwen3/):
-
-```yaml
-# Change dataset
-data:
-  train_dataset:
-    dataset_name: "your-username/your-dataset"
-
-# Adjust training
-training:
-  learning_rate: 2.0e-04
-  num_train_epochs: 3
-
-# Tweak LoRA
-peft:
-  lora_r: 16      # Higher = more parameters
-  lora_alpha: 32
-```
-
-### Evaluate Your Model
-
+Manual removal is always available:
 ```bash
-# Option 1: Edit config file
-# Edit eval/configs/qwen3_8b_full_eval.yaml
-# Change model_name to "./train/results/<job_id>"
-
-# Option 2: Use CLI
-python eval/evaluate.py \
-  --model ./train/results/123456 \
-  --tasks mmlu,gsm8k,hellaswag
+ssh koa "rm -rf /mnt/lustre/koa/scratch/$USER/koa-ml/train/results/<job_id>"
 ```
 
-### Try Different Models
-
-SmolLM (testing):
-```yaml
-model_name: "HuggingFaceTB/SmolLM2-135M-Instruct"
-```
-
-Llama 3.1 (production):
-```yaml
-model_name: "meta-llama/Llama-3.1-8B-Instruct"
-```
-
-Qwen (alternative):
-```yaml
-model_name: "Qwen/Qwen2.5-7B-Instruct"
-```
-
-## Available Configs
-
-### Training Recipes ([configs/recipes/qwen3/](../configs/recipes/qwen3/))
-- `0.6b/lora.yaml` - Quick testing (30-60 minutes)
-- `4b/lora.yaml` - Balanced LoRA training
-- `8b/lora.yaml` - Production LoRA training
-- `8b/qlora.yaml` - Memory-efficient QLoRA
-- `14b/qlora.yaml` - Large-model QLoRA
-
-### Evaluation Configs ([eval/configs/](../eval/configs/))
-- `qwen3_quickstart.yaml` - Quick verification
-- `qwen3_8b_full_eval.yaml` - Comprehensive benchmark suite
-- `qwen3_vl_m2sv.yaml` - Vision-language evaluation
-- `benchmarks/mmlu.yaml` - MMLU baseline
-- `benchmarks/gsm8k.yaml` - Math reasoning
-- `benchmarks/hellaswag.yaml` - Commonsense reasoning
-
-## Detailed Guides
-
-- [ML_GUIDE.md](ML_GUIDE.md) - Complete workflow guide
-- [train/README.md](train/README.md) - Training details
-- [eval/README.md](eval/README.md) - Evaluation details
-
-## Common Commands
-
+To archive locally:
 ```bash
-# Training
-python train/train.py --config configs/recipes/qwen3/8b/lora.yaml
-python train/train.py --config <config> --output_dir ./train/results/local/my_run
-python train/train.py --config <config> --max_steps 100  # Quick test
-
-# Evaluation
-python eval/evaluate.py --config eval/configs/qwen3_8b_full_eval.yaml
-python eval/evaluate.py --model ./train/results/123456 --tasks mmlu,gsm8k
-python eval/evaluate.py --config <config> --limit 10  # Quick test
-
-# KOA job management
-koa-ml submit <job.slurm>
-koa-ml jobs
-koa-ml cancel <job_id>
-koa-ml check
+rsync -avz --progress \
+  koa:/mnt/lustre/koa/scratch/$USER/koa-ml/train/results/<job_id>/ \
+  ~/koa-ml-checkpoints/<job_id>/
 ```
 
-## Tips
+## 9. Troubleshooting
 
-1. **Start small**: Test with SmolLM before expensive runs
-2. **Use QLoRA**: If you hit memory issues
-3. **Check logs**: SSH to KOA and inspect `/mnt/lustre/koa/scratch/<user>/koa-ml/train/results/{job_id}/job.log`
-4. **Save configs**: Commit your configs to git for reproducibility
-5. **Monitor training**: Look for steady loss decrease in logs
+**SSH or rsync issues**
+- Confirm `ssh koa.its.hawaii.edu hostname` succeeds without a password prompt
+- Ensure `ControlMaster` options exist in `~/.ssh/config` for connection reuse
 
-## Troubleshooting
+**Authentication failures when downloading models**
+- Re-run `koa-ml auth --sync` and `koa-ml auth --check`
+- Verify `.env` contains fresh `HF_TOKEN` and the token has access to gated models
 
-**Out of memory**: Switch to QLoRA or reduce batch size
+**Out-of-memory or unstable training**
+- Reduce `per_device_train_batch_size` or shorten `model_max_length`
+- Keep LoRA rank at 16 for 4B models; higher ranks require more GPU memory
+- Confirm `load_in_4bit: true` is present when running on 24 GB GPUs
 
-**Job killed**: Increase time limit in SLURM script
+**W&B run missing**
+- Check for a W&B URL in `job.log`; if absent, verify `WANDB_API_KEY` is synced
+- Set `WANDB_MODE=offline` inside `.env` if you deliberately want to disable uploads
 
-**Dataset error**: Check dataset format matches expected columns
+**Broken Python environment on KOA**
+- Request a new interactive node (`srun ...`)
+- Remove the remote `.venv` and rerun `source scripts/setup_koa_env.sh`
 
-**Slow training**: Ensure flash attention is enabled
+**Need to inspect specific predictions**
+- Download results: `koa-ml results pull <eval_job_id> --kind eval`
+- Open `predictions.csv` locally for side-by-side comparisons
 
-For more help, see the detailed guides or open an issue!
+## 10. Getting Help
+- Repository issues: open a ticket with logs and the SLURM job ID
+- KOA support: uh-hpc-help@lists.hawaii.edu (include job ID, hostname, and error snippet)
+- W&B: https://wandb.ai/support
+- Hugging Face access: https://huggingface.co/support
+
+Re-run this quickstart whenever you onboard a new teammate or rebuild your environment. It captures the canonical workflow for KOA ML experimentation in one place.

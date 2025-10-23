@@ -27,7 +27,7 @@ koa-ml refresh
 
 ```bash
 # Submit the training job (~4-6 hours)
-koa-ml submit train/scripts/qwen3_vl/train_qwen3_vl_4b_m2sv.slurm
+koa-ml submit train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm
 
 # Check status
 koa-ml jobs
@@ -59,7 +59,7 @@ Once training completes, note the job ID (e.g., `123456`).
 
 Update both evaluation configs to point to your trained model:
 
-**Edit `eval/configs/qwen3_vl_m2sv_sft_train.yaml`:**
+**Edit `eval/configs/sft_qwen3_4b/eval_train.yaml`:**
 ```yaml
 model:
   model_name: "/mnt/lustre/koa/scratch/your_username/koa-ml/train/results/123456"  # Your job ID
@@ -67,7 +67,7 @@ model:
   device_map: "auto"
 ```
 
-**Edit `eval/configs/qwen3_vl_m2sv_sft_test.yaml`:**
+**Edit `eval/configs/sft_qwen3_4b/eval_test.yaml`:**
 ```yaml
 model:
   model_name: "/mnt/lustre/koa/scratch/your_username/koa-ml/train/results/123456"  # Your job ID
@@ -85,7 +85,7 @@ koa-ml refresh
 
 ```bash
 # Evaluate on the training data (check memorization)
-koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_train.slurm
+koa-ml submit eval/scripts/sft_qwen3_4b/eval_train.slurm
 ```
 
 **Expected result**: High accuracy (70-90%+) if model is learning/memorizing
@@ -94,7 +94,7 @@ koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_train.slurm
 
 ```bash
 # Evaluate on held-out test data (check generalization)
-koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_test.slurm
+koa-ml submit eval/scripts/sft_qwen3_4b/eval_test.slurm
 ```
 
 **Expected result**: Lower than train, but should still show improvement over baseline
@@ -123,25 +123,25 @@ Example summary.json:
 
 ## Interpreting Results
 
-### Scenario 1: Good Convergence ✅
+### Scenario 1: Good Convergence
 - **Train accuracy**: 80-95%
 - **Test accuracy**: 60-75%
 - **Interpretation**: Model is learning patterns, not just memorizing
 - **Action**: Continue training or deploy model
 
-### Scenario 2: Overfitting ⚠️
+### Scenario 2: Overfitting
 - **Train accuracy**: 90%+
 - **Test accuracy**: <40%
 - **Interpretation**: Model memorizing training data, poor generalization
 - **Action**: Increase dropout, add regularization, or get more data
 
-### Scenario 3: Underfitting ⚠️
+### Scenario 3: Underfitting
 - **Train accuracy**: <60%
 - **Test accuracy**: <50%
 - **Interpretation**: Model not learning effectively
 - **Action**: Train longer, increase model capacity, or adjust learning rate
 
-### Scenario 4: Not Learning ❌
+### Scenario 4: Not Learning
 - **Train accuracy**: ~25% (random guess for 4 options)
 - **Test accuracy**: ~25%
 - **Interpretation**: Model weights not adjusting properly
@@ -154,22 +154,22 @@ Example summary.json:
 koa-ml refresh
 
 # 2. Start training
-koa-ml submit train/scripts/qwen3_vl/train_qwen3_vl_4b_m2sv.slurm
+koa-ml submit train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm
 
 # 3. Monitor jobs
 koa-ml jobs
 
 # 4. After training, update configs with checkpoint path
-# (Edit eval/configs/qwen3_vl_m2sv_sft_*.yaml files)
+# (Edit eval/configs/sft_qwen3_4b/eval_*.yaml files)
 
 # 5. Sync updated configs
 koa-ml refresh
 
 # 6. Evaluate on train
-koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_train.slurm
+koa-ml submit eval/scripts/sft_qwen3_4b/eval_train.slurm
 
 # 7. Evaluate on test
-koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_test.slurm
+koa-ml submit eval/scripts/sft_qwen3_4b/eval_test.slurm
 
 # 8. Check results
 # Look in eval/results/<job_id>/summary.json
@@ -178,15 +178,15 @@ koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_test.slurm
 ## Files Created for This Experiment
 
 ### Training
-- `train/qwen3_vl_train.py` - VLM training script
-- `configs/recipes/qwen3_vl/4b_lora_m2sv.yaml` - Training config
-- `train/scripts/qwen3_vl/train_qwen3_vl_4b_m2sv.slurm` - Training SLURM script
+- `train/scripts/sft_qwen3_4b/sft_qwen3_4b.py` - VLM training script
+- `configs/recipes/sft_qwen3_4b/sft_qwen3_4b.yaml` - Training config
+- `train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm` - Training SLURM script
 
 ### Evaluation
-- `eval/configs/qwen3_vl_m2sv_sft_train.yaml` - Eval config for train split
-- `eval/configs/qwen3_vl_m2sv_sft_test.yaml` - Eval config for test split
-- `eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_train.slurm` - Eval SLURM for train
-- `eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_test.slurm` - Eval SLURM for test
+- `eval/configs/sft_qwen3_4b/eval_train.yaml` - Eval config for train split
+- `eval/configs/sft_qwen3_4b/eval_test.yaml` - Eval config for test split
+- `eval/scripts/sft_qwen3_4b/eval_train.slurm` - Eval SLURM for train
+- `eval/scripts/sft_qwen3_4b/eval_test.slurm` - Eval SLURM for test
 
 ## Troubleshooting
 
@@ -194,7 +194,7 @@ koa-ml submit eval/scripts/qwen3/eval_qwen3_vl_m2sv_sft_test.slurm
 
 **Solution**: Enable QLoRA in the config:
 
-Edit `configs/recipes/qwen3_vl/4b_lora_m2sv.yaml`:
+Edit `configs/recipes/sft_qwen3_4b/sft_qwen3_4b.yaml`:
 ```yaml
 model:
   load_in_4bit: true  # Enable QLoRA
