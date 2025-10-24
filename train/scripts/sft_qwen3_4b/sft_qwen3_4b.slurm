@@ -113,8 +113,9 @@ echo ""
 torchrun --nproc_per_node=1 \
   train/scripts/sft_qwen3_4b/sft_qwen3_4b.py \
   --model_name_or_path Qwen/Qwen3-VL-4B-Instruct \
-  --dataset_name yosubshin/m2sv-sft \
+  --dataset_name yosubshin/m2sv-sft-11k \
   --dataset_split train \
+  --use_dataset_validation_split True \
   --output_dir "$RESULTS_DIR" \
   --tune_mm_llm True \
   --tune_mm_mlp False \
@@ -136,8 +137,13 @@ torchrun --nproc_per_node=1 \
   --warmup_ratio 0.03 \
   --weight_decay 0.01 \
   --logging_steps 10 \
-  --save_steps 500 \
+  --eval_strategy steps \
+  --eval_steps 273 \
+  --save_steps 273 \
+  --save_strategy steps \
   --save_total_limit 3 \
+  --load_best_model_at_end \
+  --metric_for_best_model eval_loss \
   --gradient_checkpointing True \
   --optim adamw_torch \
   --report_to wandb \

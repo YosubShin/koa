@@ -276,13 +276,21 @@ class ModelArguments:
 class DataArguments:
     """Arguments for data configuration."""
     dataset_name: Optional[str] = field(
-        default="yosubshin/m2sv-sft",
+        default="yosubshin/m2sv-sft-11k",
         metadata={"help": "HuggingFace dataset name"}
     )
     dataset_split: str = field(default="train", metadata={
-                               "help": "Dataset split to use"})
+                               "help": "Dataset split to use for training"})
     data_limit: Optional[int] = field(
         default=None, metadata={"help": "Limit number of training examples"})
+
+    # Validation configuration
+    use_dataset_validation_split: bool = field(
+        default=True, metadata={"help": "Use pre-existing validation split from dataset (if available)"})
+    validation_split_percentage: float = field(
+        default=0.1, metadata={"help": "Percentage of training data to use for validation if no validation split exists (0.0-1.0)"})
+    validation_seed: int = field(
+        default=42, metadata={"help": "Random seed for train/validation split"})
 
     # Image resolution (Qwen3-VL uses 32*32 token blocks)
     max_pixels: int = field(
@@ -339,19 +347,25 @@ def rank0_print(*args):
 class M2SVDataset(Dataset):
     """Dataset for M2SV-SFT data in Qwen3-VL format."""
 
-    def __init__(self, dataset_name: str, split: str, processor, limit: Optional[int] = None):
+    def __init__(self, dataset_name_or_data, split: Optional[str] = None, processor=None, limit: Optional[int] = None):
         super().__init__()
         self.processor = processor
 
-        # Load dataset from HuggingFace
-        rank0_print(f"Loading dataset: {dataset_name} (split: {split})")
-        self.dataset = load_dataset(dataset_name, split=split)
+        # Support both dataset name (str) and pre-loaded dataset object
+        if isinstance(dataset_name_or_data, str):
+            # Load dataset from HuggingFace
+            rank0_print(f"Loading dataset: {dataset_name_or_data} (split: {split})")
+            self.dataset = load_dataset(dataset_name_or_data, split=split)
+        else:
+            # Use pre-loaded dataset (for train/val splits)
+            self.dataset = dataset_name_or_data
 
         if limit:
             self.dataset = self.dataset.select(
                 range(min(limit, len(self.dataset))))
 
-        rank0_print(f"Loaded {len(self.dataset)} examples")
+        if isinstance(dataset_name_or_data, str):
+            rank0_print(f"Loaded {len(self.dataset)} examples")
 
     def __len__(self):
         return len(self.dataset)
@@ -559,12 +573,78 @@ def train():
 
     # Load dataset
     rank0_print("\nLoading dataset...")
-    train_dataset = M2SVDataset(
-        dataset_name=data_args.dataset_name,
-        split=data_args.dataset_split,
-        processor=processor,
-        limit=data_args.data_limit
-    )
+
+    # Check if dataset has pre-existing validation split
+    if data_args.use_dataset_validation_split:
+        try:
+            rank0_print(f"Attempting to load pre-existing train and validation splits from {data_args.dataset_name}...")
+            train_data = load_dataset(data_args.dataset_name, split="train")
+            val_data = load_dataset(data_args.dataset_name, split="validation")
+
+            rank0_print(f"✓ Using dataset's built-in splits:")
+            rank0_print(f"  Train examples: {len(train_data)}")
+            rank0_print(f"  Validation examples: {len(val_data)}")
+
+            # Apply data limit if specified
+            if data_args.data_limit:
+                train_data = train_data.select(range(min(data_args.data_limit, len(train_data))))
+                rank0_print(f"  Limited training data to {len(train_data)} examples")
+
+            train_dataset = M2SVDataset(
+                dataset_name_or_data=train_data,
+                processor=processor
+            )
+            eval_dataset = M2SVDataset(
+                dataset_name_or_data=val_data,
+                processor=processor
+            )
+
+        except Exception as e:
+            rank0_print(f"Warning: Could not load validation split: {e}")
+            rank0_print("Falling back to manual train/val split...")
+            data_args.use_dataset_validation_split = False
+
+    # Fallback: Create validation split from training data
+    if not data_args.use_dataset_validation_split:
+        full_dataset = load_dataset(
+            data_args.dataset_name,
+            split=data_args.dataset_split
+        )
+
+        if data_args.data_limit:
+            full_dataset = full_dataset.select(
+                range(min(data_args.data_limit, len(full_dataset))))
+            rank0_print(f"Limited dataset to {len(full_dataset)} examples")
+
+        # Split into train/validation
+        val_percentage = data_args.validation_split_percentage
+        if val_percentage > 0:
+            rank0_print(f"\nSplitting dataset: {int((1-val_percentage)*100)}% train, {int(val_percentage*100)}% validation")
+            dataset_split = full_dataset.train_test_split(
+                test_size=val_percentage,
+                seed=data_args.validation_seed
+            )
+            train_data = dataset_split['train']
+            val_data = dataset_split['test']
+
+            rank0_print(f"Train examples: {len(train_data)}")
+            rank0_print(f"Validation examples: {len(val_data)}")
+
+            train_dataset = M2SVDataset(
+                dataset_name_or_data=train_data,
+                processor=processor
+            )
+            eval_dataset = M2SVDataset(
+                dataset_name_or_data=val_data,
+                processor=processor
+            )
+        else:
+            rank0_print("No validation split (validation_split_percentage=0)")
+            train_dataset = M2SVDataset(
+                dataset_name_or_data=full_dataset,
+                processor=processor
+            )
+            eval_dataset = None
 
     # Data collator
     data_collator = DataCollatorForM2SV(
@@ -581,6 +661,7 @@ def train():
         model=model,
         args=training_args,
         train_dataset=train_dataset,
+        eval_dataset=eval_dataset,  # Added validation dataset
         data_collator=data_collator,
     )
 

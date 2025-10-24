@@ -13,8 +13,11 @@ model:
 
 data:
   train_dataset:
-    dataset_name: "yosubshin/m2sv-sft"
+    dataset_name: "yosubshin/m2sv-sft-11k"
     split: "train"
+  use_dataset_validation_split: true  # Use built-in train/validation splits
+  validation_split_percentage: 0.1  # Fallback if no validation split exists
+  validation_seed: 42  # For reproducible train/val splits
 
 training:
   trainer_type: "standard"  # Hugging Face Trainer for VLM
@@ -25,10 +28,15 @@ training:
   warmup_ratio: 0.03
   weight_decay: 0.01
   max_steps: 5000
-  save_steps: 500
-  eval_steps: 500
+  save_steps: 273
+  save_strategy: "steps"
+  evaluation_strategy: "steps"  # Enable validation during training
+  eval_steps: 273  # Run validation once per epoch (~273 steps for 4370 examples)
   logging_steps: 10
   save_total_limit: 3
+  load_best_model_at_end: true  # Load best checkpoint based on eval_loss
+  metric_for_best_model: "eval_loss"  # Use validation loss to select best model
+  greater_is_better: false  # Lower eval_loss is better
   output_dir: "./train/results/local/qwen3_vl_4b_lora_m2sv"
   bf16: true
   gradient_checkpointing: true

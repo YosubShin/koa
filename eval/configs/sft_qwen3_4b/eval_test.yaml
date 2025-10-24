@@ -1,4 +1,4 @@
-# Evaluation config for sft_qwen3_4b on M2SV-SFT TEST split
+# Evaluation config for sft_qwen3_4b on M2SV-SFT-11K VALIDATION split
 # Use this to check if the model generalizes to unseen data
 #
 # USAGE:
@@ -7,16 +7,16 @@
 
 model:
   # Path to your trained model checkpoint
-  # Latest successful training: Job 8722507
-  model_name: "/mnt/lustre/koa/scratch/mburiek/koa-ml/train/results/8722507"
+  # Update this to your latest training job ID
+  model_name: "/mnt/lustre/koa/scratch/mburiek/koa-ml/train/results/REPLACE_WITH_JOB_ID"
 
   # Use float16 for faster inference (model was trained in bfloat16)
   dtype: "float16"
   device_map: "auto"
 
 dataset:
-  name: "yosubshin/m2sv-sft"
-  split: "test"  # Unseen test data - checking generalization
+  name: "yosubshin/m2sv-sft-11k"
+  split: "validation"  # Unseen validation data - checking generalization
   fallback_split: "train"
 
 generation:
@@ -43,9 +43,9 @@ wandb:
   # run_name: "eval-sft-qwen3-4b-test"  # Optional: auto-generated if not provided
   tags:
     - "sft-qwen3-4b"
-    - "m2sv"
+    - "m2sv-11k"
     - "generalization-check"
-  notes: "Evaluating SFT Qwen3-4B on M2SV test split to check generalization"
+  notes: "Evaluating SFT Qwen3-4B on M2SV-11K validation split (485 examples) to check generalization"
 
 # Expected Result:
 # Compare with train accuracy:

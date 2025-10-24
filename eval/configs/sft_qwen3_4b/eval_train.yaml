@@ -1,4 +1,4 @@
-# Evaluation config for sft_qwen3_4b on M2SV-SFT TRAIN split
+# Evaluation config for sft_qwen3_4b on M2SV-SFT-11K TRAIN split
 # Use this to check if the model is memorizing/fitting the training data
 #
 # USAGE:
@@ -7,15 +7,15 @@
 
 model:
   # Path to your trained model checkpoint
-  # Latest successful training: Job 8722507
-  model_name: "/mnt/lustre/koa/scratch/mburiek/koa-ml/train/results/8722507"
+  # Update this to your latest training job ID
+  model_name: "/mnt/lustre/koa/scratch/mburiek/koa-ml/train/results/REPLACE_WITH_JOB_ID"
 
   # Use float16 for faster inference (model was trained in bfloat16)
   dtype: "float16"
   device_map: "auto"
 
 dataset:
-  name: "yosubshin/m2sv-sft"
+  name: "yosubshin/m2sv-sft-11k"
   split: "train"  # Same split used for training - checking memorization
   fallback_split: "train"
 
@@ -43,9 +43,9 @@ wandb:
   # run_name: "eval-sft-qwen3-4b-train"  # Optional: auto-generated if not provided
   tags:
     - "sft-qwen3-4b"
-    - "m2sv"
+    - "m2sv-11k"
     - "memorization-check"
-  notes: "Evaluating SFT Qwen3-4B on M2SV training split to check memorization"
+  notes: "Evaluating SFT Qwen3-4B on M2SV-11K training split (4370 examples) to check memorization"
 
 # Expected Result:
 # High accuracy (>90%) indicates good memorization/convergence on training data
