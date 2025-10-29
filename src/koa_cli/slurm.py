@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, Optional
 
 from .config import Config, GPURequest
 from .ssh import SSHError, copy_to_remote, run_ssh
@@ -14,44 +14,35 @@ DEFAULT_PARTITION = "kill-shared"
 # GPU priority ranking (higher score = better GPU) used as a fallback when no
 # explicit user preference matches the live cluster inventory.
 GPU_PRIORITY = {
-    "h200": 110,
-    "nvidiah200": 110,
-    "nvidiah200nvl": 110,
-    "h100": 100,
-    "nvidiah100": 100,
-    "a100": 90,
-    "nvidiaa100": 90,
-    "a30": 80,
-    "nvidiaa30": 80,
-    "v100": 70,
-    "nvidiav100": 70,
-    "rtx2080ti": 50,
-    "rtx_2080_ti": 50,
-    "geforce_rtx_2080_ti": 50,
-    "nvidiageforcertx2080ti": 50,
+    "nvidia_h200_nvl": 110,
+    "nvidia_h100": 100,
+    "nvidia_h100_pcie": 100,
+    "nvidia_h100_nvl": 100,
+    "nvidia_h200": 110,
+    "nvidia_a100": 90,
+    "nvidia_a30": 80,
+    "nv_a30": 80,
+    "nv_h100": 100,
+    "nv_l40": 85,
+    "nv_v100_sxm2": 70,
+    "nv_rtx_a4000": 60,
+    "nv_rtx5000": 55,
+    "nv_rtx2080ti": 50,
+    "nvidia_a30_1g_6gb": 45,
+    "nvidia_a30_2g_12gb": 45,
 }
 
 # Default GPU to request if detection fails entirely
 FALLBACK_GPU = "rtx2080ti"
 
 # Map normalized GPU identifiers to SLURM GRES names
-GPU_NAME_MAP = {
-    "nvidiah200": "nvidia_h200",
-    "nvidiah200nvl": "nvidia_h200_nvl",
-    "nvidiah100": "nvidia_h100",
-    "nvidiaa100": "nvidia_a100",
-    "nvidiaa30": "nvidia_a30",
-    "nvidiav100": "nvidia_v100",
-    "nvidiageforcertx2080ti": "geforce_rtx_2080_ti",
-}
-
-
 @dataclass
 class GPUAvailability:
     """Summary of GPU availability within a partition."""
 
     nodes: int = 0
     max_per_node: int = 0
+    slurm_name: str = "gpu"
 
     def supports(self, count: int) -> bool:
         return self.nodes > 0 and self.max_per_node >= count
@@ -63,14 +54,15 @@ class JobIOPaths:
     stderr: Optional[str] = None
 
 
-def _normalize_gpu_key(name: Optional[str]) -> str:
+def _canonical_gpu_key(name: Optional[str]) -> str:
     if not name:
         return "gpu"
-    return re.sub(r"[^a-z0-9]", "", name.lower())
+    key = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    return key or "gpu"
 
 
-def _to_slurm_gpu_name(normalized: str) -> str:
-    return GPU_NAME_MAP.get(normalized, normalized)
+def _canonical_user_preference(name: str) -> str:
+    return _canonical_gpu_key(name)
 
 
 def _extract_partition(args: Iterable[str]) -> Optional[str]:
@@ -153,7 +145,7 @@ def get_available_gpus(config: Config, partition: str = DEFAULT_PARTITION) -> Di
         if len(parts) < 3:
             continue
 
-        gres_field = parts[1].lower()
+        gres_field = parts[1]
         state = parts[2].lower()
 
         if state not in {"idle", "mix", "mixed"}:
@@ -163,13 +155,14 @@ def get_available_gpus(config: Config, partition: str = DEFAULT_PARTITION) -> Di
             entry = entry.strip()
             if "(" in entry:
                 entry = entry.split("(", 1)[0]
-            if not entry.startswith("gpu"):
+            entry_lower = entry.lower()
+            if not entry_lower.startswith("gpu"):
                 continue
 
-            pieces = entry.split(":")
+            pieces = entry_lower.split(":")
             if len(pieces) == 3:
                 _, raw_type, raw_count = pieces
-                gpu_type = raw_type.replace("-", "_")
+                gpu_type = raw_type
                 try:
                     count = int(raw_count)
                 except ValueError:
@@ -184,8 +177,9 @@ def get_available_gpus(config: Config, partition: str = DEFAULT_PARTITION) -> Di
             else:
                 continue
 
-            key = _normalize_gpu_key(gpu_type)
-            record = inventory.setdefault(key, GPUAvailability())
+            slurm_name = (gpu_type or "gpu").lower()
+            canonical = _canonical_gpu_key(gpu_type)
+            record = inventory.setdefault(canonical, GPUAvailability(slurm_name=slurm_name))
             record.nodes += 1
             if count > record.max_per_node:
                 record.max_per_node = count
@@ -218,15 +212,19 @@ def select_gpu_request(
         if preference.type is None:
             return GPURequest(type=None, count=preference.count)
 
-        normalized = _normalize_gpu_key(preference.type)
-        stats = availability.get(normalized)
+        canonical = _canonical_user_preference(preference.type)
+        stats = availability.get(canonical)
         if stats and stats.supports(preference.count):
-            slurm_name = _to_slurm_gpu_name(normalized)
-            return GPURequest(type=slurm_name, count=preference.count)
+            return GPURequest(type=stats.slurm_name, count=preference.count)
+        if canonical not in availability:
+            available = ", ".join(sorted(stat.slurm_name for stat in availability.values()))
+            raise ValueError(
+                f"Requested GPU '{preference.type}' not recognised. Available GPUs: {available}"
+            )
 
     best_key = _select_highest_priority_gpu(availability)
     if best_key:
-        slurm_name = _to_slurm_gpu_name(best_key)
+        slurm_name = availability[best_key].slurm_name
         return GPURequest(type=slurm_name, count=1)
 
     fallback_normalized = _normalize_gpu_key(FALLBACK_GPU)
