@@ -173,3 +173,58 @@ def sync_directory_to_remote(
             f"rsync failed ({result.returncode}): {' '.join(rsync_command)}\n"
             f"stderr: {result.stderr}"
         )
+
+
+def sync_directory_from_remote(
+    config: Config,
+    remote_dir: Path,
+    local_dir: Path,
+    *,
+    delete: bool = True,
+) -> None:
+    """
+    Synchronize a remote directory down to the local machine via rsync.
+    """
+    remote_dir_str = str(remote_dir)
+    quoted_remote = shlex.quote(remote_dir_str)
+    exists = run_ssh(
+        config,
+        ["bash", "-lc", f"test -d {quoted_remote}"],
+        capture_output=True,
+        check=False,
+    )
+    if exists.returncode != 0:
+        # Nothing to sync yet.
+        return
+
+    local_dir = local_dir.expanduser().resolve()
+    local_dir.mkdir(parents=True, exist_ok=True)
+
+    ssh_command = _rsync_ssh_command(config)
+    rsync_command: list[str] = [
+        "rsync",
+        "-av",
+    ]
+    if delete:
+        rsync_command.append("--delete")
+
+    rsync_command.extend(
+        [
+            "-e",
+            ssh_command,
+            f"{config.login}:{remote_dir_str}/",
+            f"{str(local_dir)}/",
+        ]
+    )
+
+    result = subprocess.run(
+        rsync_command,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise SSHError(
+            f"rsync failed ({result.returncode}): {' '.join(rsync_command)}\n"
+            f"stderr: {result.stderr}"
+        )

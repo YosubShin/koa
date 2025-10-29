@@ -1,660 +1,158 @@
-# koa-ml
+# koa
 
-Complete toolkit for training and evaluating language models on the University of Hawaii's KOA HPC cluster. Submit jobs from your local machine, track experiments with Weights & Biases, and manage everything with a single CLI.
-
----
-
-## Table of Contents
-
-- [Features](#features)
-- [Complete Setup Guide](#complete-setup-guide)
-  - [Prerequisites](#prerequisites)
-  - [Step 1: SSH Key Setup](#step-1-ssh-key-setup)
-  - [Step 2: SSH Connection Persistence](#step-2-ssh-connection-persistence-controlmaster)
-  - [Step 3: Local Environment Setup](#step-3-local-environment-setup)
-  - [Step 4: Remote KOA Environment Setup](#step-4-remote-koa-environment-setup)
-  - [Step 5: Authentication Tokens (HuggingFace & W&B)](#step-5-authentication-tokens-huggingface--wb)
-  - [Step 6: Verify Everything Works](#step-6-verify-everything-works)
-- [Quick Start (After Setup)](#quick-start-after-setup)
-- [Documentation](#documentation)
-- [Project Structure](#project-structure)
-- [Getting Help](#getting-help)
+A lightweight command-line companion for the University of Hawai'i KOA cluster. The tool focuses on one job: making it easy to sync code, pick an appropriate GPU, submit jobs, and monitor their life cycle from your local workstation.
 
 ---
 
-## Features
-
-### Core Capabilities
-- **Job Management**: Submit, monitor, and cancel jobs on KOA from your local machine
-- **Fine-Tuning**: LoRA, QLoRA, and full training with pre-configured recipes
-- **Evaluation**: Standard benchmarks (MMLU, GSM8K, HellaSwag, etc.) with multi-format output
-- **Experiment Tracking**: Automatic Weights & Biases integration for all training runs
-- **Version Control**: Every job automatically saves the exact code, config, and SLURM script used
-- **HuggingFace Integration**: Seamless model and dataset loading with gated model support
-
-### Developer Experience
-- **One-Command Job Submission**: `koa-ml submit <script>` handles everything
-- **SSH Connection Persistence**: Authenticate once, use for 60 minutes without re-entering credentials
-- **Config Validation**: Validate YAML configs before submission
-- **Results Comparison**: Compare model performance before/after training
-- **Performance Metrics**: Automatic tracking of training throughput, GPU memory, and timing
-- **Comprehensive Error Handling**: Detailed logs and graceful failure handling
+## Highlights
+- **Job submission pipeline** – copy a script, infer sensible defaults, and hand it to `sbatch` with a single command.
+- **GPU heuristics** – inspect live availability and auto-select the best GPU type for the requested partition.
+- **Workspace snapshots** – every submission bundles the exact repo state so jobs run with reproducible code and configs.
+- **Run manifests** – each submission stores git state and relevant untracked files alongside the job results for reproducibility.
+- **Global setup** – one-time `koa setup` configures usernames, roots, and preferred modules for every project.
+- **Run catalog** – every submission is indexed locally so you can list, sync, and inspect historical runs.
+- **Plain Python package** – small dependency footprint and no bundled training/evaluation code.
 
 ---
 
-## Complete Setup Guide
-
-Follow these steps **in order** to get fully set up. This is a one-time setup process.
-
-### Prerequisites
-
-- **KOA Account**: You must have access to `koa.its.hawaii.edu`
-- **Local Machine**: macOS or Linux with Python 3.9+
-- **HuggingFace Account** (optional): For downloading models - https://huggingface.co/join
-- **Weights & Biases Account** (optional): For experiment tracking - https://wandb.ai/signup
-
----
-
-### Step 1: SSH Key Setup
-
-Set up SSH key-based authentication to KOA (required for the toolkit to work).
-
-#### Generate SSH Key (if you don't have one)
+## Installation
 
 ```bash
-# Check if you already have an SSH key
-ls -la ~/.ssh/id_*.pub
+# Recommended: pipx keeps koa isolated but available everywhere
+pipx install --force git+https://github.com/YosubShin/koa.git
 
-# If not, generate one (press Enter to accept defaults)
-ssh-keygen -t ed25519 -C "your_email@hawaii.edu"
-```
+# Alternatively: per-user install (ensure ~/.local/bin is on PATH)
+python3 -m pip install --user git+https://github.com/YosubShin/koa.git
 
-#### Copy SSH Key to KOA
-
-```bash
-# Copy your public key to KOA
-ssh-copy-id your_username@koa.its.hawaii.edu
-
-# You'll need to authenticate with your password + Duo 2FA
-```
-
-#### Verify SSH Key Works
-
-```bash
-# This should log you in WITHOUT asking for a password (only Duo)
-ssh your_username@koa.its.hawaii.edu
-```
-
----
-
-### Step 2: SSH Connection Persistence (ControlMaster)
-
-Configure SSH to keep connections alive for 60 minutes, so you don't have to re-authenticate with Duo for every `koa-ml` command.
-
-#### Create SSH Config
-
-Edit or create `~/.ssh/config`:
-
-```bash
-nano ~/.ssh/config
-```
-
-Add the following (replace `your_username` with your KOA username):
-
-```
-Host koa koa.its.hawaii.edu
-    HostName koa.its.hawaii.edu
-    User your_username
-    IdentityFile ~/.ssh/id_ed25519
-
-    # Connection persistence - reuse connection for 60 minutes
-    ControlMaster auto
-    ControlPath ~/.ssh/control-%r@%h:%p
-    ControlPersist 60m
-
-    # Keep connection alive
-    ServerAliveInterval 60
-    ServerAliveCountMax 3
-```
-
-#### Test Connection Persistence
-
-```bash
-# First connection - you'll need to authenticate with Duo
-ssh koa.its.hawaii.edu "hostname"
-
-# Second command - should work immediately without Duo!
-ssh koa.its.hawaii.edu "date"
-```
-
-If the second command works instantly, you're all set! The connection will persist for 60 minutes.
-
----
-
-### Step 3: Local Environment Setup
-
-Set up the koa-ml CLI on your local machine.
-
-```bash
-# Clone the repository
-cd ~/Documents/GitHub  # or wherever you keep your code
-git clone <your-repo-url> koa-ml
-cd koa-ml
-
-# Create and activate Python virtual environment
+# Development: editable install inside a throwaway venv
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Install koa-ml CLI
 pip install --upgrade pip setuptools wheel
 pip install -e .
 ```
 
-#### Configure KOA Connection
+The CLI installs the entry point `koa`.
 
-```bash
-# Create koa-ml config directory
-mkdir -p ~/.config/koa-ml
+---
 
-# Copy and edit the config template
-cp .koa-config.example.yaml ~/.config/koa-ml/config.yaml
-nano ~/.config/koa-ml/config.yaml
-```
+## Configure access
 
-Update the config with your information:
+1. Run `koa setup` (once per machine) to capture your KOA username, host, and the global workspace roots on KOA and locally. The global config lives at `~/.config/koa/config.yaml`.
+2. Inside each repository, run `koa init` to generate a minimal `koa-config.yaml` plus helper scripts. Edit the file only if you want to change per-project preferences such as GPU ordering or additional `env_watch` files.
+3. (Optional) Update `gpu_preferences` or `env_watch` in `koa-config.yaml` to tweak the defaults.
+
+The CLI automatically discovers `koa-config.yaml` by walking up from the current working directory. Environment variables such as `KOA_USER`, `KOA_HOST`, `KOA_IDENTITY_FILE`, `KOA_REMOTE_ROOT`, `KOA_LOCAL_ROOT`, `KOA_DEFAULT_PARTITION`, `KOA_PYTHON_MODULE`, `KOA_CUDA_MODULE`, `KOA_ENV_WATCH`, and `KOA_PROXY_COMMAND` can override the saved configuration at runtime.
+
+Example `koa-config.yaml` generated by `koa init`:
 
 ```yaml
-user: "your_koa_username"
-host: koa.its.hawaii.edu
-identity_file: ~/.ssh/id_ed25519
-remote_workdir: /home/your_koa_username/koa-ml
-remote_data_dir: /mnt/lustre/koa/scratch/your_koa_username/koa-ml
+project: my-awesome-project
+
+gpu_preferences:
+  partitions:
+    kill-shared:
+      - type: nvidia_h200
+        count: 2
+      - type: nvidia_h100
+        count: 2
+
+env_watch:
+  - scripts/setup_env.sh
+  - requirements.txt
+  - pyproject.toml
 ```
 
-#### Verify CLI Works
-
-```bash
-# Test connection
-koa-ml check
-
-# You should see output like:
-# Hostname: koa.its.hawaii.edu
-# SLURM cluster status: ...
-```
-
-#### Initialize Remote Storage
-
-```bash
-# Create scratch directories and optional symlinks under ~/koa-ml
-koa-ml storage setup --link
-```
-
-This command ensures your code checkout lives in `/home/.../koa-ml`, while large
-artifacts (checkpoints, logs, evaluation outputs) are written to
-`/mnt/lustre/koa/scratch/<user>/koa-ml`. The `--link` flag creates convenient
-symlinks so `~/koa-ml/train/results` and `~/koa-ml/eval/results` point at the
-scratch locations.
 
 ---
 
-### Step 4: Remote KOA Environment Setup
-
-Set up the Python environment on KOA where your jobs will actually run.
-
-#### Sync Code to KOA
+## Everyday workflow
 
 ```bash
-# From your local machine, sync the repository to KOA
-koa-ml refresh
+# 0. (First time) Configure your KOA defaults
+koa setup --user $USER
 
-# This uploads all code to ~/koa-ml on KOA (excluding .venv, .git, etc.)
+# 0b. (Per project) Bootstrap a repo with config + scripts
+koa init
+
+# 1. Check connectivity and cluster health
+koa check
+
+# 2. Inspect GPU supply on the default partition
+koa gpus
+# or specify a queue explicitly
+koa gpus --partition kill-shared
+
+# 3. Submit a job script (auto GPU selection unless you pass --no-auto-gpu)
+koa submit examples/slurm/basic_job.slurm --time 01:00:00
+# every submission writes a repo snapshot + run metadata under <local results>/<job-id>/
+  # run_metadata/ includes env_hashes.json for watched setup files
+
+# 4. Monitor jobs and inspect runs
+koa jobs
+koa cancel <job-id>
+koa logs <job-id> --follow
+koa runs list
 ```
 
-#### Create Python Environment on KOA Compute Node
-
-**Important**: You must create the `.venv` on a **compute node** (not the login node) because it needs to compile packages for the GPU environment.
-
-```bash
-# SSH to KOA
-ssh koa.its.hawaii.edu
-
-# Request an interactive compute node session (4 CPUs, 16GB RAM, 1 hour)
-srun -p gpu-sandbox --gres=gpu:1 --cpus-per-task=4 --mem=16G --time=1:00:00 --pty /bin/bash
-
-# Once you're on a compute node, navigate to the repository
-cd ~/koa-ml
-
-# Run the environment setup script (this takes ~15-20 minutes)
-source scripts/setup_koa_env.sh
-```
-
-The script will:
-- Load Python 3.11 and CUDA modules
-- Create a fresh `.venv` in `~/koa-ml/.venv`
-- Install PyTorch with CUDA 12.1 support
-- Install all ML dependencies (transformers, peft, trl, bitsandbytes, flash-attn, etc.)
-- Install koa-ml in editable mode
-
-**Note**: If `flash-attn` fails to compile, the script will automatically retry without it (it's optional).
-
-#### Exit Compute Node
-
-```bash
-# Once setup is complete, exit the compute node
-exit
-
-# You're back on the login node
-exit
-
-# Now you're back on your local machine
-```
+Every submitted job includes a `run_metadata/` folder under its results directory containing `manifest.json`, `git_head.txt`, `git_status.txt`, `env_hashes.json`, and any untracked files that were present locally when you launched the run.
 
 ---
 
-### Step 5: Authentication Tokens (HuggingFace & W&B)
+## CLI reference
 
-Configure API tokens for downloading models and tracking experiments.
+- `check` – run a quick SSH round-trip and display `sinfo` output.
+- `setup` – configure global defaults (user, workspace roots, preferred modules).
+- `init` – scaffold project config and helper scripts using global defaults.
+- `jobs` – list your queued and running jobs via `squeue`.
+- `submit` – copy a script and call `sbatch`; use `--sbatch-arg` for raw overrides.
+- `cancel` – stop a job by ID with `scancel`.
+- `logs` – stream or inspect a job's stdout/stderr in real time via `tail` (stored at `<remote results dir>/<job-id>/job.log` and `job.err`).
+- `gpus` – show detected GPU types and recommend a `--gres` request using your configured preferences.
+- `runs` – sync and inspect the local catalog of submitted jobs.
+  - `koa runs list` shows recent submissions (most recent first).
+  - `koa runs sync` updates Slurm status and downloads completed runs into the local mirror automatically.
+  - `koa runs show <job-id>` prints the recorded metadata (git commit, env hashes, locations) for a single run.
 
-#### Get Your HuggingFace Token
-
-1. Go to https://huggingface.co/settings/tokens
-2. Click "Create new token"
-3. **Token type**: Select **"Read"** (not Fine-grained or Write)
-4. **Token name**: `koa-ml`
-5. **Permissions**: Check only these two:
-   - ✅ Read access to contents of all repos under your personal namespace
-   - ✅ Read access to contents of all public gated repos you can access
-6. Click "Create token" and copy it (starts with `hf_...`)
-
-#### Get Your Weights & Biases API Key
-
-1. Go to https://wandb.ai/authorize
-2. Copy your API key
-
-#### Create Local .env File
-
-```bash
-# From your local koa-ml directory
-cd ~/Documents/GitHub/koa-ml
-
-# Copy the template
-cp .env.example .env
-
-# Edit the .env file
-nano .env
-```
-
-Add your tokens:
-
-```bash
-# HuggingFace token for downloading models
-HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxx
-
-# Weights & Biases for experiment tracking
-WANDB_API_KEY=xxxxxxxxxxxxxxxxxxxxx
-WANDB_PROJECT=koa-ml-experiments
-WANDB_ENTITY=your-wandb-username
-```
-
-**Important**: The `.env` file is gitignored and will NOT be committed.
-
-#### Sync Tokens to KOA
-
-```bash
-# Upload your .env file to KOA securely
-koa-ml auth --sync
-
-# Verify tokens are configured
-koa-ml auth --check
-```
-
-You should see:
-
-```
-✓ .env file found at /home/your_username/koa-ml/.env
-
-Checking for tokens:
-  HF_TOKEN: ✓ Set
-  WANDB_API_KEY: ✓ Set
-  WANDB_PROJECT: ✓ Set
-  WANDB_ENTITY: ✓ Set
-```
+Each command accepts `--config /path/to/config.yaml` if you need to swap between multiple KOA accounts.
 
 ---
 
-### Step 6: Verify Everything Works
+## Directory layout
 
-Let's test the complete setup with a quick training job!
+`koa setup` captures two roots:
 
-```bash
-# Submit a smoke-test training job (set training.max_steps low in the config)
-koa-ml submit train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm
+- **Remote root** (e.g. `/mnt/lustre/koa/scratch/<user>/koa-cli`)
+- **Local root** (e.g. `~/.koa-cli`)
 
-# Check job status
-koa-ml jobs
-```
-
-You should see your job in the queue:
+For a project named `<project>`, the CLI derives:
 
 ```
-JOBID|NAME|STATE|TIME|TIME_LIMIT|NODES|NODELIST(REASON)
-123456|train-qwen3-0.6b|RUNNING|1:23|0:30:00|1|gpu-node-01
+Remote: <remote_root>/projects/<project>/jobs/<job-id>/{repo,results,run_metadata}
+Local : <local_root>/projects/<project>/jobs/<job-id>/{repo,results,run_metadata}
 ```
 
-#### View Live Results in Weights & Biases
-
-1. Go to https://wandb.ai
-2. Navigate to your project (e.g., `koa-ml-experiments`)
-3. You should see your training run with live metrics!
-
-**Congratulations!** Your complete setup is done!
+- `repo/` contains the exact snapshot submitted with the job.
+- `run_metadata/` holds manifests, git info, and environment hashes.
+- `results/` is where your job writes outputs; `koa runs sync` copies this directory back to the local mirror automatically once the job completes.
 
 ---
 
-## Quick Start (After Setup)
+## Sample SLURM script
 
-Once you've completed the setup above, here's how to use koa-ml:
+Minimal examples live under `examples/slurm/`. Start from `basic_job.slurm` and adapt the resources, modules, and commands to your workload. The CLI sets `KOA_ML_RESULTS_ROOT` automatically so jobs can collect outputs in the directory that `koa runs sync` mirrors locally once they finish.
 
-### Submit a Training Job
-
-```bash
-# Qwen3-VL 4B LoRA (set training.max_steps in the config for quick tests)
-koa-ml submit train/scripts/sft_qwen3_4b/sft_qwen3_4b.slurm
-```
-
-### Submit an Evaluation Job
-
-```bash
-# Baseline (pretrained model, before fine-tuning)
-koa-ml submit eval/scripts/sft_qwen3_4b/eval_base.slurm
-
-# Train split (memorization check after fine-tuning)
-koa-ml submit eval/scripts/sft_qwen3_4b/eval_train.slurm
-
-# Test split (generalization check after fine-tuning)
-koa-ml submit eval/scripts/sft_qwen3_4b/eval_test.slurm
-```
-
-### Monitor Jobs
-
-```bash
-# List your running/pending jobs
-koa-ml jobs
-
-# Cancel a job
-koa-ml cancel <job_id>
-```
-
-### Inspect Results
-
-```bash
-# List recent training runs on scratch
-koa-ml results list --kind train
-
-# Download an evaluation result locally
-koa-ml results pull 123456 --kind eval --dest ./artifacts/eval-123456
-```
-
-### Update Code on KOA
-
-```bash
-# After making local changes, sync to KOA
-koa-ml refresh
-
-# This preserves your .venv and .env on KOA
-```
+Running `koa init` also drops a project-specific `scripts/basic_job.slurm` and `scripts/setup_env.sh` that you can customise; they mirror the global defaults captured by `koa setup`. The default config watches files like `scripts/setup_env.sh`, `requirements.txt`, and `pyproject.toml`, so changing any of them automatically triggers a virtualenv rebuild on the next submission.
 
 ---
 
-## Documentation
+## Development
 
-- **[docs/QUICKSTART.md](docs/QUICKSTART.md)** — Complete setup, training, evaluation, and cleanup workflow
-- **[docs/TRAINING_BEST_PRACTICES.md](docs/TRAINING_BEST_PRACTICES.md)** — Patterns that keep SLURM and training scripts reliable
-- **[docs/M2SV_VLM_EXPERIMENT.md](docs/M2SV_VLM_EXPERIMENT.md)** — Step-by-step reproduction of the M2SV fine-tuning experiment
-- **[docs/CLEANUP_GUIDE.md](docs/CLEANUP_GUIDE.md)** — Storage management playbook for KOA scratch space
-
----
-
-## CLI Reference
-
-### Core Commands
+Install development tooling with:
 
 ```bash
-# Job Management
-koa-ml submit <script.slurm>              # Submit a SLURM job
-koa-ml jobs                                # List your jobs
-koa-ml cancel <job_id>                    # Cancel a job
-koa-ml check                              # Health check
-
-# Code Sync
-koa-ml refresh                            # Sync local code to KOA
-
-# Authentication
-koa-ml auth --sync                        # Sync .env tokens to KOA
-koa-ml auth --check                       # Verify token configuration
+pip install -e .[dev]
+ruff check
+pytest
 ```
 
-### Advanced Options
-
-```bash
-# Submit with custom resources
-koa-ml submit job.slurm --partition gpu --gpus 2 --mem 64G --time 24:00:00
-
-# Use custom config
-koa-ml --config /path/to/config.yaml check
-
-# Sync with custom excludes
-koa-ml refresh --exclude "*.pyc" --exclude "__pycache__"
-```
-
----
-
-## Project Structure
-
-```
-koa-ml/
-├── configs/                    # Configuration system
-│   ├── datasets/              # Reusable dataset definitions
-│   │   ├── alpaca_cleaned.yaml
-│   │   ├── custom_template.yaml
-│   │   └── dolly.yaml
-│   └── recipes/
-│       └── sft_qwen3_4b/
-│           └── sft_qwen3_4b.yaml
-│
-├── docs/                       # Documentation
-│   ├── CLEANUP_GUIDE.md        # Scratch storage cleanup playbook
-│   ├── M2SV_VLM_EXPERIMENT.md  # Experiment walkthrough
-│   ├── QUICKSTART.md           # Install/train/eval quickstart
-│   └── TRAINING_BEST_PRACTICES.md # SLURM and training tips
-│
-├── eval/                       # Evaluation system
-│   ├── configs/
-│   │   └── sft_qwen3_4b/
-│   │       ├── WANDB_GUIDE.md
-│   │       ├── eval_test.yaml
-│   │       ├── eval_train.yaml
-│   │       └── eval_train_quick.yaml
-│   ├── scripts/
-│   │   └── sft_qwen3_4b/
-│   │       ├── eval_test.slurm
-│   │       ├── eval_train.slurm
-│   │       └── sft_qwen3_4b.py    # Vision-language evaluation runner
-│   ├── results/               # Symlink to scratch results (via `koa-ml storage link`)
-│   └── evaluate.py            # Benchmark entry point
-│
-├── train/                      # Training system
-│   ├── scripts/
-│   │   └── sft_qwen3_4b/
-│   │       ├── sft_qwen3_4b.py
-│   │       └── sft_qwen3_4b.slurm
-│   ├── results/               # Symlink to scratch results (via `koa-ml storage link`)
-│   └── train.py               # Local training helper
-│
-├── scripts/                    # Utilities
-│   ├── cleanup_storage.sh
-│   ├── run_vllm_server.sh
-│   ├── setup_koa_env.sh
-│   └── wait_for_vllm.sh
-│
-├── src/koa_ml/                 # CLI implementation
-│   ├── __main__.py            # Main CLI entry point
-│   ├── config.py              # Config management
-│   ├── ssh.py                 # SSH/rsync operations
-│   └── slurm.py               # SLURM operations
-│
-├── .env.example                # Environment template
-├── .koa-config.example.yaml    # KOA config template
-└── README.md                   # This file
-```
-
----
-
-## Key Features Explained
-
-### Automatic Version Control
-
-Every job automatically saves the exact code used:
-
-```
-/mnt/lustre/koa/scratch/<user>/koa-ml/eval/results/123456/
-├── job.log                          # All output (stdout + stderr)
-├── predictions.csv                  # Results
-├── summary.json                     # Metrics
-├── eval_train.slurm                # SLURM script used
-├── sft_qwen3_4b.py                 # Python script used
-└── eval_train.yaml                 # Config used
-```
-
-You can always reproduce any run by looking at these files!
-
-### Unified Logging
-
-Jobs no longer split logs into `.err` and `.out`. Everything goes to a single `job.log` file for easier debugging.
-
-### Weights & Biases Integration
-
-All training jobs automatically log to W&B:
-- Real-time loss curves
-- Learning rate schedules
-- GPU memory usage
-- Training throughput
-- Evaluation metrics
-
-View at: https://wandb.ai/your-username/koa-ml-experiments
-
-### SSH Connection Persistence
-
-The ControlMaster configuration means:
-- Authenticate once with Duo
-- Run unlimited `koa-ml` commands for 60 minutes
-- No re-authentication needed!
-
----
-
-## KOA Quick Reference
-
-### Cluster Info
-- **Login node**: `koa.its.hawaii.edu` (SSH/MFA required)
-- **Web portal**: https://koa.its.hawaii.edu
-- **Storage**:
-  - `/home/<user>` - 50 GB, backed up daily
-  - `/mnt/lustre/koa/scratch/<user>` - Large storage, 90-day purge
-
-### Common Partitions
-- `gpu-sandbox` - 4 hours, for testing
-- `gpu` - Up to 3 days, production
-- `kill-shared` - Preemptible, unlimited time
-- `shared` - 3 days, CPU only
-
-### Useful Commands
-```bash
-# Check cluster status
-sinfo
-
-# Check your jobs
-squeue -u $USER
-
-# Interactive session
-srun -p gpu-sandbox --gres=gpu:1 --mem=16G --time=1:00:00 --pty /bin/bash
-
-# Cancel all your jobs
-scancel -u $USER
-```
-
----
-
-## Troubleshooting
-
-### Connection Issues
-
-**Problem**: `koa-ml check` fails with connection error
-
-**Solution**:
-1. Verify SSH key: `ssh koa.its.hawaii.edu`
-2. Check ControlMaster: `cat ~/.ssh/config`
-3. Check config: `cat ~/.config/koa-ml/config.yaml`
-
-### Authentication Issues
-
-**Problem**: Jobs can't download models from HuggingFace
-
-**Solution**:
-```bash
-# Re-sync tokens
-koa-ml auth --sync
-
-# Verify
-koa-ml auth --check
-```
-
-### W&B Not Logging
-
-**Problem**: Jobs run but don't appear in W&B
-
-**Solution**:
-1. Check token is set: `koa-ml auth --check`
-2. Verify config has `report_to: "wandb"` in the training section
-3. Check job log for W&B initialization messages
-
-### Virtual Environment Issues
-
-**Problem**: Jobs fail with "module not found" errors
-
-**Solution**:
-```bash
-# SSH to KOA
-ssh koa.its.hawaii.edu
-
-# Request compute node
-srun -p gpu-sandbox --gres=gpu:1 --mem=16G --time=1:00:00 --pty /bin/bash
-
-# Rebuild environment
-cd ~/koa-ml
-rm -rf .venv
-source scripts/setup_koa_env.sh
-```
-
----
-
-## Getting Help
-
-- **Documentation**: Start with [docs/QUICKSTART.md](docs/QUICKSTART.md)
-- **Training Tips**: [docs/TRAINING_BEST_PRACTICES.md](docs/TRAINING_BEST_PRACTICES.md)
-- **KOA Support**: uh-hpc-help@lists.hawaii.edu (include job ID and error logs)
-- **Issues**: Open an issue in this repository
-
----
-
-## Acknowledgments
-
-Inspired by:
-- [oumi-ai/oumi](https://github.com/oumi-ai/oumi) - Training framework design
-- [open-compass/VLMEvalKit](https://github.com/open-compass/VLMEvalKit) - Evaluation patterns
-- [ThinkingMachinesLab/tinker-cookbook](https://github.com/ThinkingMachinesLab/tinker-cookbook) - Recipe structure
-
----
-
-## License
-
-Apache 2.0 - See [LICENSE](LICENSE)
+Contributions are welcome via pull request.
