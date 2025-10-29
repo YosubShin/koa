@@ -49,6 +49,7 @@ class Config:
     remote_code_dir: Path = Path("~/koa-cli/projects/default/jobs")
     remote_results_dir: Path = Path("~/koa-cli/projects/default/jobs")
     local_results_dir: Path = Path("./results/projects/default/jobs")
+    shared_env_dir: Path = Path("~/koa-cli/projects/default/envs/uv")
     gpu_preferences: GPUPreferences = field(default_factory=GPUPreferences)
     default_partition: Optional[str] = None
     python_module: Optional[str] = None
@@ -268,6 +269,7 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
 
     remote_project_root = (remote_root / "projects" / project_name).resolve()
     remote_jobs_root = remote_project_root / "jobs"
+    remote_env_dir = remote_project_root / "envs" / "uv"
     local_project_root = (local_root / "projects" / project_name).resolve()
     local_jobs_root = local_project_root / "jobs"
 
@@ -302,6 +304,7 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         remote_code_dir=remote_jobs_root,
         remote_results_dir=remote_jobs_root,
         local_results_dir=local_jobs_root,
+        shared_env_dir=remote_env_dir,
         gpu_preferences=gpu_preferences,
         default_partition=default_partition,
         python_module=python_module,

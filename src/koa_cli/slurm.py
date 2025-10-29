@@ -247,6 +247,8 @@ def ensure_remote_workspace(config: Config) -> None:
     run_ssh(config, ["mkdir", "-p", str(config.remote_code_dir)])
     if config.remote_results_dir:
         run_ssh(config, ["mkdir", "-p", str(config.remote_results_dir)])
+    if config.shared_env_dir:
+        run_ssh(config, ["mkdir", "-p", str(config.shared_env_dir)])
 
 
 def submit_job(
@@ -268,6 +270,10 @@ def submit_job(
     env_vars: list[str] = [f"KOA_ML_CODE_ROOT={config.remote_code_dir}"]
     if config.remote_results_dir:
         env_vars.append(f"KOA_ML_RESULTS_ROOT={config.remote_results_dir}")
+    if config.remote_project_root:
+        env_vars.append(f"KOA_PROJECT_ROOT={config.remote_project_root}")
+    if config.shared_env_dir:
+        env_vars.append(f"KOA_SHARED_ENV={config.shared_env_dir}")
 
     args = ["env", *env_vars, "sbatch"]
     sbatch_args_list = list(sbatch_args or [])

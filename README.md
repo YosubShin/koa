@@ -19,6 +19,7 @@ A lightweight command-line companion for the University of Hawai'i KOA cluster. 
 
 ```bash
 # Recommended: pipx keeps koa isolated but available everywhere
+# (install pipx with `python3 -m pip install --user pipx` then `python3 -m pipx ensurepath` if needed)
 pipx install --force git+https://github.com/YosubShin/koa.git
 
 # Alternatively: per-user install (ensure ~/.local/bin is on PATH)
