@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Union
+from typing import List, Optional, Union
 
 import yaml
 
@@ -12,27 +12,6 @@ LEGACY_CONFIG_PATHS = (
     Path("~/.config/koa-ml/config.yaml").expanduser(),
 )
 PROJECT_CONFIG_FILENAMES: tuple[str, ...] = ("koa-config.yaml", ".koa-config.yaml")
-
-
-@dataclass
-class GPURequest:
-    """Desired GPU resource request."""
-
-    type: Optional[str] = None  # SLURM GRES type (e.g. nvidia_h100). None = any GPU.
-    count: int = 1
-
-
-@dataclass
-class GPUPreferences:
-    """Ordered GPU preferences used by auto-selection."""
-
-    default: List[GPURequest] = field(default_factory=list)
-    partitions: Dict[str, List[GPURequest]] = field(default_factory=dict)
-
-    def for_partition(self, partition: Optional[str]) -> List[GPURequest]:
-        if partition and partition in self.partitions:
-            return self.partitions[partition]
-        return self.default
 
 
 @dataclass
@@ -50,11 +29,10 @@ class Config:
     remote_results_dir: Path = Path("~/koa-cli/projects/default/jobs")
     local_results_dir: Path = Path("./results/projects/default/jobs")
     shared_env_dir: Path = Path("~/koa-cli/projects/default/envs/uv")
-    gpu_preferences: GPUPreferences = field(default_factory=GPUPreferences)
     default_partition: Optional[str] = None
     python_module: Optional[str] = None
     cuda_module: Optional[str] = None
-    env_watch_files: list[str] = field(default_factory=list)
+    env_watch_files: List[str] = field(default_factory=list)
 
     @property
     def login(self) -> str:
@@ -105,59 +83,6 @@ def discover_config_path(start: Optional[PathLikeOrStr] = None) -> Path:
     )
 
 
-def _parse_gpu_request(entry: Union[str, Dict[str, object]]) -> GPURequest:
-    if isinstance(entry, str):
-        cleaned = entry.strip()
-        if not cleaned or cleaned.lower() in {"any", "auto"}:
-            return GPURequest(type=None, count=1)
-        return GPURequest(type=cleaned, count=1)
-
-    if not isinstance(entry, dict):
-        raise TypeError(f"Unsupported GPU preference entry: {entry!r}")
-
-    gpu_type = entry.get("type") or entry.get("name") or entry.get("gres")
-    if isinstance(gpu_type, str):
-        gpu_type = gpu_type.strip()
-        if gpu_type.lower() in {"", "any", "auto"}:
-            gpu_type = None
-    elif gpu_type is not None:
-        raise TypeError(f"GPU preference type must be a string, got {gpu_type!r}")
-
-    count_raw = entry.get("count", 1)
-    try:
-        count = int(count_raw)
-    except (TypeError, ValueError) as exc:
-        raise TypeError(f"GPU preference count must be an integer (got {count_raw!r})") from exc
-    if count < 1:
-        count = 1
-
-    return GPURequest(type=gpu_type, count=count)
-
-
-def _parse_gpu_preferences(data: Optional[dict]) -> GPUPreferences:
-    if not data:
-        return GPUPreferences()
-
-    def parse_list(values: Optional[Iterable[Union[str, Dict[str, object]]]]) -> List[GPURequest]:
-        if values is None:
-            return []
-        if isinstance(values, (str, dict)):
-            values = [values]
-        result: List[GPURequest] = []
-        for value in values:
-            result.append(_parse_gpu_request(value))
-        return result
-
-    default_prefs = parse_list(data.get("default") or data.get("defaults"))
-    partition_prefs: Dict[str, List[GPURequest]] = {}
-    partitions_section = data.get("partitions") or {}
-    if isinstance(partitions_section, dict):
-        for partition, prefs in partitions_section.items():
-            partition_prefs[str(partition)] = parse_list(prefs)
-
-    return GPUPreferences(default=default_prefs, partitions=partition_prefs)
-
-
 def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
     """
     Load configuration from disk. When no path is provided we search for
@@ -165,15 +90,14 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
     or, for backwards compatibility, ~/.config/koa-ml/config.yaml.
     """
 
-    global_data = {}
-    if DEFAULT_CONFIG_PATH.exists():
-        with DEFAULT_CONFIG_PATH.open("r", encoding="utf-8") as fh:
-            global_data = yaml.safe_load(fh) or {}
-    else:
+    if not DEFAULT_CONFIG_PATH.exists():
         raise FileNotFoundError(
             f"Global configuration file not found at {DEFAULT_CONFIG_PATH}. "
             "Run `koa setup` to create one."
         )
+
+    with DEFAULT_CONFIG_PATH.open("r", encoding="utf-8") as fh:
+        global_data = yaml.safe_load(fh) or {}
 
     project_config_path: Optional[Path] = None
     if config_path:
@@ -206,9 +130,6 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         "user": os.getenv("KOA_USER"),
         "host": os.getenv("KOA_HOST"),
         "identity_file": os.getenv("KOA_IDENTITY_FILE"),
-        "remote_workdir": os.getenv("KOA_REMOTE_WORKDIR"),
-        "remote_results_dir": os.getenv("KOA_REMOTE_RESULTS_DIR"),
-        "local_results_dir": os.getenv("KOA_LOCAL_RESULTS_DIR"),
         "remote_root": os.getenv("KOA_REMOTE_ROOT"),
         "local_root": os.getenv("KOA_LOCAL_ROOT"),
         "default_partition": os.getenv("KOA_DEFAULT_PARTITION"),
@@ -248,18 +169,12 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         else:
             project_name = "default"
 
-    remote_root_value = (
-        data.get("remote_root")
-        or (data.get("remote") or {}).get("root")
-    )
+    remote_root_value = data.get("remote_root") or (data.get("remote") or {}).get("root")
     if not remote_root_value:
         raise ValueError("remote_root is not configured. Run `koa setup` or set remote_root in your global config.")
     remote_root = Path(remote_root_value).expanduser()
 
-    local_root_value = (
-        data.get("local_root")
-        or (data.get("local") or {}).get("root")
-    )
+    local_root_value = data.get("local_root") or (data.get("local") or {}).get("root")
     if local_root_value:
         local_root = Path(local_root_value).expanduser()
         if not local_root.is_absolute():
@@ -273,19 +188,7 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
     local_project_root = (local_root / "projects" / project_name).resolve()
     local_jobs_root = local_project_root / "jobs"
 
-    gpu_preferences = _parse_gpu_preferences(data.get("gpu_preferences"))
-
-    default_partition = data.get("default_partition")
-    python_module = data.get("python_module")
-    cuda_module = data.get("cuda_module")
-    modules_section = data.get("modules") or {}
-    if not python_module:
-        python_module = modules_section.get("python")
-    if not cuda_module:
-        cuda_module = modules_section.get("cuda")
-
     env_watch_raw = data.get("env_watch") or data.get("env_watch_files") or []
-    env_watch_files: list[str]
     if isinstance(env_watch_raw, str):
         env_watch_files = [env_watch_raw]
     else:
@@ -305,9 +208,8 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         remote_results_dir=remote_jobs_root,
         local_results_dir=local_jobs_root,
         shared_env_dir=remote_env_dir,
-        gpu_preferences=gpu_preferences,
-        default_partition=default_partition,
-        python_module=python_module,
-        cuda_module=cuda_module,
+        default_partition=data.get("default_partition"),
+        python_module=data.get("python_module"),
+        cuda_module=data.get("cuda_module"),
         env_watch_files=env_watch_files,
     )

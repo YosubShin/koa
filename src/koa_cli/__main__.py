@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import os
 import shlex
@@ -15,14 +14,10 @@ import yaml
 
 from .config import Config, DEFAULT_CONFIG_PATH, load_config
 from .slurm import (
-    DEFAULT_PARTITION,
     cancel_job,
-    get_available_gpus,
     get_job_io_paths,
-    gpu_display_name,
     list_jobs,
     run_health_checks,
-    select_gpu_request,
     submit_job,
 )
 from .ssh import (
@@ -72,15 +67,6 @@ DEFAULT_ENV_WATCH = [
     "uv.lock",
     "environment.yml",
 ]
-
-DEFAULT_GPU_PREFERENCES = {
-    "partitions": {
-        "kill-shared": [
-            {"type": "nvidia_h200", "count": 2},
-            {"type": "nvidia_h100", "count": 2},
-        ]
-    }
-}
 
 
 def _prompt(value: Optional[str], question: str, *, default: Optional[str] = None, required: bool = False) -> str:
@@ -188,21 +174,6 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Additional raw sbatch arguments. Repeat for multiple flags.",
-    )
-    submit_parser.add_argument(
-        "--no-auto-gpu",
-        action="store_true",
-        help="Disable automatic GPU selection (use GPU from script or --gpus flag).",
-    )
-
-    gpus_parser = subparsers.add_parser(
-        "gpus", help="Inspect GPU availability and recommendations."
-    )
-    _add_common_arguments(gpus_parser)
-    gpus_parser.add_argument(
-        "--partition",
-        default=None,
-        help="Slurm partition to inspect (defaults to the CLI default).",
     )
 
     logs_parser = subparsers.add_parser(
@@ -502,12 +473,6 @@ def _init_project(args: argparse.Namespace) -> int:
     if modules_section:
         config_content["modules"] = modules_section
 
-    gpu_preferences = data.get("gpu_preferences")
-    if gpu_preferences:
-        config_content["gpu_preferences"] = copy.deepcopy(gpu_preferences)
-    else:
-        config_content["gpu_preferences"] = copy.deepcopy(DEFAULT_GPU_PREFERENCES)
-
     config_content["env_watch"] = DEFAULT_ENV_WATCH
 
     config_yaml = yaml.safe_dump(config_content, sort_keys=False)
@@ -600,8 +565,6 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         sbatch_args.extend(["--qos", args.qos])
     sbatch_args.extend(args.sbatch_arg or [])
 
-    auto_gpu = not (args.no_auto_gpu or args.gpus)
-
     with tempfile.TemporaryDirectory(prefix="koa-submit-") as tmpdir:
         tmp_path = Path(tmpdir)
         manifest_path = tmp_path / "run_metadata"
@@ -621,8 +584,7 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
             args.job_script,
             sbatch_args=sbatch_args,
             remote_name=args.remote_name,
-            auto_gpu=auto_gpu,
-        )
+                    )
 
         update_manifest_metadata(
             manifest_path,
@@ -716,35 +678,6 @@ def _check(_: argparse.Namespace, config: Config) -> int:
     return 0
 
 
-def _gpus(args: argparse.Namespace, config: Config) -> int:
-    partition = args.partition or DEFAULT_PARTITION
-    availability = get_available_gpus(config, partition=partition)
-
-    if not availability:
-        print(
-            "No GPU availability information returned. Try again later or disable auto GPU selection."
-        )
-        return 0
-
-    print(f"Available GPUs on '{partition}':")
-    for gpu_type, stats in sorted(
-        availability.items(), key=lambda item: (-item[1].nodes, -item[1].max_per_node, item[0])
-    ):
-        display_name = gpu_display_name(gpu_type)
-        print(
-            f"  {display_name}: {stats.nodes} node(s) (max {stats.max_per_node} GPU(s) per node)"
-        )
-
-    recommendation = select_gpu_request(
-        config,
-        partition=partition,
-        availability=availability,
-    )
-    if recommendation.type:
-        print(f"\nRecommended request: --gres=gpu:{recommendation.type}:{recommendation.count}")
-    else:
-        print(f"\nRecommended request: --gres=gpu:{recommendation.count}")
-    return 0
 
 
 def _logs(args: argparse.Namespace, config: Config) -> int:
@@ -844,8 +777,6 @@ def main(argv: Optional[list[str]] = None) -> int:
             return _jobs(args, config)
         if args.command == "check":
             return _check(args, config)
-        if args.command == "gpus":
-            return _gpus(args, config)
         if args.command == "logs":
             return _logs(args, config)
         if args.command == "runs":

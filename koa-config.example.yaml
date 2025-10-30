@@ -9,16 +9,7 @@ project: <repo_name>
 #   python: lang/Python/3.11.5-GCCcore-13.2.0
 #   cuda: system/CUDA/12.2.0
 
-gpu_preferences:
-  partitions:
-    kill-shared:
-      - type: nvidia_h200
-        count: 2
-      - type: nvidia_h100
-        count: 2
-
 env_watch:
   - scripts/setup_env.sh
   - requirements.txt
   - pyproject.toml
-  - uv.lock
