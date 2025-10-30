@@ -173,6 +173,10 @@ def _build_parser() -> argparse.ArgumentParser:
     submit_parser.add_argument("--account", help="Slurm account if required.")
     submit_parser.add_argument("--qos", help="Quality of service if required.")
     submit_parser.add_argument(
+        "--desc",
+        help="Optional description appended to the timestamped run directory name.",
+    )
+    submit_parser.add_argument(
         "--sbatch-arg",
         action="append",
         default=[],
