@@ -33,6 +33,7 @@ class Config:
     python_module: Optional[str] = None
     cuda_module: Optional[str] = None
     env_watch_files: List[str] = field(default_factory=list)
+    snapshot_excludes: List[str] = field(default_factory=list)
 
     @property
     def login(self) -> str:
@@ -136,12 +137,13 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         "python_module": os.getenv("KOA_PYTHON_MODULE"),
         "cuda_module": os.getenv("KOA_CUDA_MODULE"),
         "env_watch": os.getenv("KOA_ENV_WATCH"),
+        "snapshot_excludes": os.getenv("KOA_SNAPSHOT_EXCLUDES"),
         "proxy_command": os.getenv("KOA_PROXY_COMMAND"),
     }
 
     for key, value in env_overrides.items():
         if value is not None:
-            if key == "env_watch":
+            if key in {"env_watch", "snapshot_excludes"}:
                 data[key] = [item.strip() for item in value.split(",") if item.strip()]
             else:
                 data[key] = value
@@ -194,6 +196,12 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
     else:
         env_watch_files = list(env_watch_raw)
 
+    snapshot_excludes_raw = data.get("snapshot_excludes") or []
+    if isinstance(snapshot_excludes_raw, str):
+        snapshot_excludes = [snapshot_excludes_raw]
+    else:
+        snapshot_excludes = list(snapshot_excludes_raw)
+
     return Config(
         user=data["user"],
         host=data["host"],
@@ -212,4 +220,5 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         python_module=data.get("python_module"),
         cuda_module=data.get("cuda_module"),
         env_watch_files=env_watch_files,
+        snapshot_excludes=snapshot_excludes,
     )

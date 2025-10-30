@@ -13,3 +13,7 @@ env_watch:
   - scripts/setup_env.sh
   - requirements.txt
   - pyproject.toml
+
+# Optional: skip additional files/dirs when snapshotting
+snapshot_excludes:
+  - data/raw

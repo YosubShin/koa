@@ -61,6 +61,7 @@ def submit_job(
     *,
     sbatch_args: Optional[Iterable[str]] = None,
     remote_name: Optional[str] = None,
+    run_dir: Optional[Path] = None,
 ) -> str:
     if not local_job_script.exists():
         raise FileNotFoundError(f"Job script not found: {local_job_script}")
@@ -71,12 +72,18 @@ def submit_job(
     copy_to_remote(config, local_job_script, remote_script)
 
     env_vars: list[str] = [f"KOA_ML_CODE_ROOT={config.remote_code_dir}"]
-    if config.remote_results_dir:
-        env_vars.append(f"KOA_ML_RESULTS_ROOT={config.remote_results_dir}")
+    remote_results_root: Optional[Path] = config.remote_results_dir
+    if remote_results_root:
+        env_vars.append(f"KOA_ML_RESULTS_ROOT={remote_results_root}")
     if config.remote_project_root:
         env_vars.append(f"KOA_PROJECT_ROOT={config.remote_project_root}")
     if config.shared_env_dir:
         env_vars.append(f"KOA_SHARED_ENV={config.shared_env_dir}")
+
+    run_dir_str: Optional[str] = None
+    if run_dir:
+        run_dir_str = str(run_dir)
+        env_vars.append(f"KOA_RUN_DIR={run_dir_str}")
 
     args = ["env", *env_vars, "sbatch"]
     sbatch_args_list = list(sbatch_args or [])
@@ -84,8 +91,13 @@ def submit_job(
     if not _has_partition_flag(sbatch_args_list):
         args.extend(["--partition", DEFAULT_PARTITION])
 
-    if config.remote_results_dir:
-        results_root = str(config.remote_results_dir)
+    if run_dir_str:
+        if not _has_output_flag(sbatch_args_list):
+            args.extend(["--output", f"{run_dir_str}/job.log"])
+        if not _has_error_flag(sbatch_args_list):
+            args.extend(["--error", f"{run_dir_str}/job.err"])
+    elif remote_results_root:
+        results_root = str(remote_results_root)
         if not _has_output_flag(sbatch_args_list):
             args.extend(["--output", f"{results_root}/%j/job.log"])
         if not _has_error_flag(sbatch_args_list):

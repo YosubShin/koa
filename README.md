@@ -1,6 +1,6 @@
 # koa
 
-A lightweight command-line companion for the University of Hawai'i KOA cluster. The tool focuses on one job: making it easy to sync code, pick an appropriate GPU, submit jobs, and monitor their life cycle from your local workstation.
+A lightweight command-line companion for the University of Hawai'i KOA cluster. The tool focuses on one job: making it easy to sync code, submit jobs, and monitor their life cycle from your local workstation.
 
 ---
 
@@ -39,7 +39,7 @@ The CLI installs the entry point `koa`.
 
 1. Run `koa setup` (once per machine) to capture your KOA username, host, and the global workspace roots on KOA and locally. The global config lives at `~/.config/koa/config.yaml`.
 2. Inside each repository, run `koa init` to generate a minimal `koa-config.yaml` plus helper scripts. Edit the file only if you want to change per-project module overrides or additional `env_watch` entries.
-3. (Optional) Update `env_watch` in `koa-config.yaml` if your project uses additional lockfiles.
+3. (Optional) Update `env_watch` and `snapshot_excludes` in `koa-config.yaml` if your project needs custom lockfiles or directories you want to skip during snapshots.
 
 The CLI automatically discovers `koa-config.yaml` by walking up from the current working directory. Environment variables such as `KOA_USER`, `KOA_HOST`, `KOA_IDENTITY_FILE`, `KOA_REMOTE_ROOT`, `KOA_LOCAL_ROOT`, `KOA_DEFAULT_PARTITION`, `KOA_PYTHON_MODULE`, `KOA_CUDA_MODULE`, `KOA_ENV_WATCH`, and `KOA_PROXY_COMMAND` can override the saved configuration at runtime.
 
@@ -53,6 +53,8 @@ env_watch:
   - requirements.txt
   - pyproject.toml
 ```
+Add optional `snapshot_excludes:` if you want to skip additional files or directories during submission snapshots (e.g., raw datasets or build artifacts).
+
 
 
 ---
@@ -69,8 +71,8 @@ koa init
 # 1. Check connectivity and cluster health
 koa check
 
-# 2. Submit a job script (specify GPU resources in the SLURM script or via `koa submit --gpus` if desired)
-koa submit examples/slurm/basic_job.slurm --time 01:00:00
+# 2. Submit a job script (declare GPU resources in the SLURM script, or add `--gpus` for a generic count)
+koa submit scripts/basic_job.slurm --time 01:00:00 --desc "baseline"
 # every submission writes a repo snapshot + run metadata under <local results>/<job-id>/
   # run_metadata/ includes env_hashes.json for watched setup files
 
@@ -91,7 +93,7 @@ Every submitted job includes a `run_metadata/` folder under its results director
 - `setup` – configure global defaults (user, workspace roots, preferred modules).
 - `init` – scaffold project config and helper scripts using global defaults.
 - `jobs` – list your queued and running jobs via `squeue`.
-- `submit` – copy a script and call `sbatch`; use `--sbatch-arg` for raw overrides.
+- `submit` – copy a script and call `sbatch`; use `--sbatch-arg` for raw overrides. Add flags like `--gpus` (generic count) or `--desc` to control resources and the timestamped results folder name.
 - `cancel` – stop a job by ID with `scancel`.
 - `logs` – stream or inspect a job's stdout/stderr in real time via `tail` (stored at `<remote results dir>/<job-id>/job.log` and `job.err`).
 - `runs` – sync and inspect the local catalog of submitted jobs.
@@ -113,19 +115,19 @@ Each command accepts `--config /path/to/config.yaml` if you need to swap between
 For a project named `<project>`, the CLI derives:
 
 ```
-Remote: <remote_root>/projects/<project>/jobs/<job-id>/{repo,results,run_metadata}
-Local : <local_root>/projects/<project>/jobs/<job-id>/{repo,results,run_metadata}
+Remote: <remote_root>/projects/<project>/jobs/<timestamp[_desc]>/{repo,run_metadata,results,job.log,job.err}
+Local : <local_root>/projects/<project>/jobs/<timestamp[_desc]>/{repo,run_metadata,results,job.log,job.err}
 ```
 
 - `repo/` contains the exact snapshot submitted with the job.
 - `run_metadata/` holds manifests, git info, and environment hashes.
-- `results/` is where your job writes outputs; `koa runs sync` copies this directory back to the local mirror automatically once the job completes.
+- `results/` is where your job writes outputs; `koa runs sync` copies the entire run directory (including logs) back to the local mirror automatically once the job completes.
 
 ---
 
 ## Sample SLURM script
 
-Minimal examples live under `examples/slurm/`. Start from `basic_job.slurm` and adapt the resources, modules, and commands to your workload (including any `#SBATCH --gres` lines you require). The CLI sets `KOA_ML_RESULTS_ROOT` automatically so jobs can collect outputs in the directory that `koa runs sync` mirrors locally once they finish.
+Minimal examples live under `examples/`. Start from `basic_job.slurm` and adapt the resources, modules, and commands to your workload (including any `#SBATCH --gres` lines you require). The CLI sets `KOA_ML_RESULTS_ROOT` automatically so jobs can collect outputs in the directory that `koa runs sync` mirrors locally once they finish.
 
 Running `koa init` also drops a project-specific `scripts/basic_job.slurm` and `scripts/setup_env.sh` that you can customise; they mirror the global defaults captured by `koa setup`. The default config watches files like `scripts/setup_env.sh`, `requirements.txt`, and `pyproject.toml`, so changing any of them automatically triggers a virtualenv rebuild on the next submission.
 
