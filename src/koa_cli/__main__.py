@@ -631,6 +631,8 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
             remote_results_dir=str(config.remote_results_dir) if config.remote_results_dir else None,
         )
 
+        manifest_data = json.loads((manifest_path / "manifest.json").read_text(encoding="utf-8"))
+
         remote_job_dir: Optional[Path] = None
         if config.remote_results_dir:
             remote_job_dir = config.remote_results_dir / job_id
@@ -644,8 +646,6 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         if config.local_results_dir:
             local_job_dir = (config.local_results_dir / job_id).expanduser()
             local_job_dir.mkdir(parents=True, exist_ok=True)
-
-        manifest_data = json.loads((manifest_path / "manifest.json").read_text(encoding="utf-8"))
 
         if remote_job_dir:
             remote_manifest_dir = remote_job_dir / "run_metadata"
@@ -680,6 +680,12 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
             if local_repo_dir.exists():
                 shutil.rmtree(local_repo_dir)
             shutil.copytree(repo_snapshot_path, local_repo_dir)
+
+        if job_id:
+            try:
+                run_ssh(config, ["scontrol", "release", job_id])
+            except SSHError as exc:
+                print(f"Warning: failed to release job {job_id}: {exc}", file=sys.stderr)
 
         record_submission(
             config,

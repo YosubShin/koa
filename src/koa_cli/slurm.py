@@ -262,7 +262,8 @@ def submit_job(
 
     ensure_remote_workspace(config)
 
-    remote_script = config.remote_code_dir / (remote_name or local_job_script.name)
+    job_dir = config.remote_code_dir / (remote_name or local_job_script.name)
+    remote_script = job_dir
     copy_to_remote(config, local_job_script, remote_script)
 
     env_vars: list[str] = [f"KOA_ML_CODE_ROOT={config.remote_code_dir}"]
@@ -305,14 +306,6 @@ def submit_job(
     if not match:
         raise SSHError(f"Unable to parse sbatch output for job id: {output}")
     job_id = match.group(1)
-
-    if config.remote_results_dir:
-        results_root = str(config.remote_results_dir)
-        try:
-            run_ssh(config, ["mkdir", "-p", f"{results_root}/{job_id}"])
-        except SSHError:
-            # Non-fatal: job script can still create directories if needed.
-            pass
 
     return job_id
 
