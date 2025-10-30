@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import shlex
+import uuid
 import shutil
 import sys
 import tempfile
@@ -579,12 +580,44 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         repo_snapshot_path = tmp_path / "repo"
         _create_repo_snapshot(Path.cwd(), repo_snapshot_path)
 
+        stage_token = uuid.uuid4().hex[:8]
+        remote_stage_dir: Optional[Path] = None
+        local_stage_dir: Optional[Path] = None
+
+        if config.remote_results_dir:
+            remote_stage_dir = config.remote_results_dir / f"_stage_{stage_token}"
+            try:
+                run_ssh(config, ["mkdir", "-p", str(remote_stage_dir)])
+                copy_to_remote(
+                    config,
+                    manifest_path,
+                    remote_stage_dir / "run_metadata",
+                    recursive=True,
+                )
+                copy_to_remote(
+                    config,
+                    repo_snapshot_path,
+                    remote_stage_dir / "repo",
+                    recursive=True,
+                )
+            except SSHError as exc:
+                print(f"Warning: failed to stage files on KOA: {exc}", file=sys.stderr)
+                remote_stage_dir = None
+
+        if config.local_results_dir:
+            local_stage_dir = (config.local_results_dir / f"_stage_{stage_token}").expanduser()
+            if local_stage_dir.exists():
+                shutil.rmtree(local_stage_dir)
+            local_stage_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(manifest_path, local_stage_dir / "run_metadata")
+            shutil.copytree(repo_snapshot_path, local_stage_dir / "repo")
+
         job_id = submit_job(
             config,
             args.job_script,
             sbatch_args=sbatch_args,
             remote_name=args.remote_name,
-                    )
+        )
 
         update_manifest_metadata(
             manifest_path,
@@ -596,58 +629,25 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         manifest_data = json.loads((manifest_path / "manifest.json").read_text(encoding="utf-8"))
 
         remote_job_dir: Optional[Path] = None
-        if config.remote_results_dir:
-            remote_job_dir = config.remote_results_dir / job_id
-            try:
-                run_ssh(config, ["mkdir", "-p", str(remote_job_dir)])
-            except SSHError as exc:
-                print(f"Warning: failed to prepare remote job directory: {exc}", file=sys.stderr)
-                remote_job_dir = None
+        if remote_stage_dir:
+            final_remote_dir = config.remote_results_dir / job_id if config.remote_results_dir else None
+            if final_remote_dir:
+                try:
+                    run_ssh(config, ["mv", str(remote_stage_dir), str(final_remote_dir)])
+                    remote_job_dir = final_remote_dir
+                except SSHError as exc:
+                    print(f"Warning: failed to move staged files to {final_remote_dir}: {exc}", file=sys.stderr)
+                    remote_job_dir = remote_stage_dir
 
         local_job_dir: Optional[Path] = None
-        if config.local_results_dir:
-            local_job_dir = (config.local_results_dir / job_id).expanduser()
-            local_job_dir.mkdir(parents=True, exist_ok=True)
+        if local_stage_dir:
+            final_local_dir = (config.local_results_dir / job_id).expanduser() if config.local_results_dir else None
+            if final_local_dir:
+                if final_local_dir.exists():
+                    shutil.rmtree(final_local_dir)
+                shutil.move(str(local_stage_dir), final_local_dir)
+                local_job_dir = final_local_dir
 
-        if remote_job_dir:
-            remote_manifest_dir = remote_job_dir / "run_metadata"
-            try:
-                copy_to_remote(
-                    config,
-                    manifest_path,
-                    remote_manifest_dir,
-                    recursive=True,
-                )
-            except SSHError as exc:
-                print(f"Warning: failed to upload run manifest: {exc}", file=sys.stderr)
-
-            remote_repo_dir = remote_job_dir / "repo"
-            try:
-                copy_to_remote(
-                    config,
-                    repo_snapshot_path,
-                    remote_repo_dir,
-                    recursive=True,
-                )
-            except SSHError as exc:
-                print(f"Warning: failed to upload repo snapshot: {exc}", file=sys.stderr)
-
-        if local_job_dir:
-            local_manifest_dir = local_job_dir / "run_metadata"
-            if local_manifest_dir.exists():
-                shutil.rmtree(local_manifest_dir)
-            shutil.copytree(manifest_path, local_manifest_dir)
-
-            local_repo_dir = local_job_dir / "repo"
-            if local_repo_dir.exists():
-                shutil.rmtree(local_repo_dir)
-            shutil.copytree(repo_snapshot_path, local_repo_dir)
-
-        if job_id:
-            try:
-                run_ssh(config, ["scontrol", "release", job_id])
-            except SSHError as exc:
-                print(f"Warning: failed to release job {job_id}: {exc}", file=sys.stderr)
 
         record_submission(
             config,

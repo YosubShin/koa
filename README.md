@@ -38,7 +38,7 @@ The CLI installs the entry point `koa`.
 ## Configure access
 
 1. Run `koa setup` (once per machine) to capture your KOA username, host, and the global workspace roots on KOA and locally. The global config lives at `~/.config/koa/config.yaml`.
-2. Inside each repository, run `koa init` to generate a minimal `koa-config.yaml` plus helper scripts. Edit the file only if you want to change per-project preferences such as GPU ordering or additional `env_watch` files.
+2. Inside each repository, run `koa init` to generate a minimal `koa-config.yaml` plus helper scripts. Edit the file only if you want to change per-project module overrides or additional `env_watch` entries.
 3. (Optional) Update `env_watch` in `koa-config.yaml` if your project uses additional lockfiles.
 
 The CLI automatically discovers `koa-config.yaml` by walking up from the current working directory. Environment variables such as `KOA_USER`, `KOA_HOST`, `KOA_IDENTITY_FILE`, `KOA_REMOTE_ROOT`, `KOA_LOCAL_ROOT`, `KOA_DEFAULT_PARTITION`, `KOA_PYTHON_MODULE`, `KOA_CUDA_MODULE`, `KOA_ENV_WATCH`, and `KOA_PROXY_COMMAND` can override the saved configuration at runtime.
