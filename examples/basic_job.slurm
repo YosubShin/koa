@@ -32,6 +32,33 @@ echo "Running on $(hostname)"
 echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-unset}"
 echo "Writing outputs to ${RESULTS_DIR}"
 
+echo "==== Job Info ====="
+echo "Job ID: ${SLURM_JOB_ID:-unknown}"
+echo "Node: $(hostname)"
+echo "Started: $(date)"
+echo "KOA_ML_CODE_ROOT=${KOA_ML_CODE_ROOT:-unset}"
+echo "KOA_RUN_DIR=${KOA_RUN_DIR:-unset}"
+echo "KOA_RUN_METADATA_DIR=${KOA_RUN_METADATA_DIR:-unset}"
+echo "KOA_SHARED_ENV=${KOA_SHARED_ENV:-unset}"
+echo
+
+echo "==== GPU Info ====="
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi
+else
+  echo "nvidia-smi not available"
+fi
+echo
+
+echo "==== Python Environment ====="
+if command -v python >/dev/null 2>&1; then
+  which python
+  python --version
+else
+  echo "python not found"
+fi
+echo
+
 # Replace this with your workload. 'sleep' is only a placeholder.
 srun --cpu-bind=cores sleep 60
 

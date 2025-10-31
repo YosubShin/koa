@@ -84,6 +84,7 @@ def submit_job(
     if run_dir:
         run_dir_str = str(run_dir)
         env_vars.append(f"KOA_RUN_DIR={run_dir_str}")
+        env_vars.append(f"KOA_RUN_METADATA_DIR={run_dir_str}/run_metadata")
 
     args = ["env", *env_vars, "sbatch"]
     sbatch_args_list = list(sbatch_args or [])
