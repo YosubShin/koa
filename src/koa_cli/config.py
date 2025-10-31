@@ -186,7 +186,7 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
 
     remote_project_root = (remote_root / "projects" / project_name).resolve()
     remote_jobs_root = remote_project_root / "jobs"
-    remote_env_dir = remote_project_root / "envs" / "uv"
+    remote_env_dir = remote_project_root / ".venv"
     local_project_root = (local_root / "projects" / project_name).resolve()
     local_jobs_root = local_project_root / "jobs"
 
