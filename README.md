@@ -127,7 +127,7 @@ Local : <local_root>/projects/<project>/jobs/<timestamp[_desc]>/{repo,run_metada
 
 ## Sample SLURM script
 
-Minimal examples live under `examples/`. Start from `basic_job.slurm` and adapt the resources, modules, and commands to your workload (including any `#SBATCH --gres` lines you require). The CLI sets `KOA_ML_RESULTS_ROOT` automatically so jobs can collect outputs in the directory that `koa runs sync` mirrors locally once they finish.
+Minimal templates live under `src/koa_cli/templates/`. Start from `basic_job.slurm` and adapt the resources, modules, and commands to your workload (including any `#SBATCH --gres` lines you require). The CLI sets `KOA_ML_RESULTS_ROOT` automatically so jobs can collect outputs in the directory that `koa runs sync` mirrors locally once they finish.
 
 Running `koa init` also drops a project-specific `scripts/basic_job.slurm` and `scripts/setup_env.sh` that you can customise; they mirror the global defaults captured by `koa setup`. The default config watches files like `scripts/setup_env.sh`, `requirements.txt`, and `pyproject.toml`, so changing any of them automatically triggers a virtualenv rebuild on the next submission.
 
