@@ -623,7 +623,7 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         repo_snapshot_path = tmp_path / "repo"
         _create_repo_snapshot(Path.cwd(), repo_snapshot_path, config.snapshot_excludes)
 
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         desc = args.desc or ""
         if desc:
             desc = re.sub(r"[^A-Za-z0-9_-]+", "_", desc).strip("_-")
