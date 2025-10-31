@@ -532,13 +532,13 @@ fi
 echo "Writing outputs to ${{RESULTS_DIR}}"
 
 echo "==== Job Info ====="
-echo "Job ID: ${SLURM_JOB_ID:-unknown}"
+echo "Job ID: ${{SLURM_JOB_ID:-unknown}}"
 echo "Node: $(hostname)"
 echo "Started: $(date)"
-echo "KOA_ML_CODE_ROOT=${KOA_ML_CODE_ROOT:-unset}"
-echo "KOA_RUN_DIR=${KOA_RUN_DIR:-unset}"
-echo "KOA_RUN_METADATA_DIR=${KOA_RUN_METADATA_DIR:-unset}"
-echo "KOA_SHARED_ENV=${KOA_SHARED_ENV:-unset}"
+echo "KOA_ML_CODE_ROOT=${{KOA_ML_CODE_ROOT:-unset}}"
+echo "KOA_RUN_DIR=${{KOA_RUN_DIR:-unset}}"
+echo "KOA_RUN_METADATA_DIR=${{KOA_RUN_METADATA_DIR:-unset}}"
+echo "KOA_SHARED_ENV=${{KOA_SHARED_ENV:-unset}}"
 echo
 
 echo "==== GPU Info ====="
