@@ -60,6 +60,7 @@ if [[ "${recreate}" -eq 0 && -n "${ENV_HASH_SOURCE}" ]]; then
   fi
 fi
 
+export UV_PROJECT_ENVIRONMENT="${SHARED_ENV_DIR}"
 if [[ "${recreate}" -eq 1 ]]; then
   log "Recreating shared environment at ${SHARED_ENV_DIR}"
   # Ensure uv is available for managing the shared environment
@@ -69,7 +70,7 @@ if [[ "${recreate}" -eq 1 ]]; then
 
   # (Re)create the uv-managed environment and install dependencies from this repo snapshot
   uv venv --clear "${SHARED_ENV_DIR}"
-  uv pip install .
+  uv sync --extra hpc
 
   if [[ -n "${ENV_HASH_SOURCE}" ]]; then
     mkdir -p "${ENV_CACHE_DIR}"
