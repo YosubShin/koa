@@ -9,10 +9,26 @@ import yaml
 
 DEFAULT_CONFIG_PATH = Path("~/.config/koa/config.yaml").expanduser()
 PROJECT_CONFIG_FILENAMES: tuple[str, ...] = ("koa-config.yaml", ".koa-config.yaml")
+DEFAULT_BACKEND_NAME = "koa"
+BACKEND_SPECIFIC_KEYS: set[str] = {
+    "cluster_name",
+    "user",
+    "host",
+    "identity_file",
+    "proxy_command",
+    "project_name",
+    "remote_root",
+    "local_root",
+    "default_partition",
+    "python_module",
+    "cuda_module",
+    "modules",
+}
 
 
 @dataclass
 class Config:
+    cluster_name: str
     user: str
     host: str
     identity_file: Optional[Path] = None
@@ -75,9 +91,11 @@ def discover_config_path(start: Optional[PathLikeOrStr] = None) -> Path:
         f"Searched: {', '.join(searched_locations)}, {DEFAULT_CONFIG_PATH}, "
         + ". Create one with `cp koa-config.example.yaml koa-config.yaml`."
     )
-
-
-def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
+def load_config(
+    config_path: Optional[PathLikeOrStr] = None,
+    *,
+    backend_name: Optional[str] = None,
+) -> Config:
     """
     Load configuration from disk. When no path is provided we search for
     koa-config.yaml in the current project and fall back to ~/.config/koa/config.yaml
@@ -120,6 +138,40 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
 
     data = _merge_dicts(global_data, project_data)
 
+    resolved_backend_name = (
+        backend_name
+        or os.getenv("KOA_BACKEND")
+        or data.get("default_backend")
+        or DEFAULT_BACKEND_NAME
+    )
+
+    backends_section = data.get("backends")
+    backend_candidate: dict = {}
+    if isinstance(backends_section, list) and backends_section:
+        for entry in backends_section:
+            if entry.get("cluster_name") == resolved_backend_name:
+                backend_candidate = dict(entry)
+                break
+        else:
+            available = [str(entry.get("cluster_name", "")) for entry in backends_section]
+            raise ValueError(
+                f"Backend '{resolved_backend_name}' not configured. Available backends: {', '.join(available)}"
+            )
+    else:
+        backend_candidate = {
+            key: value for key, value in data.items() if key in BACKEND_SPECIFIC_KEYS
+        }
+        backend_candidate.setdefault("cluster_name", resolved_backend_name)
+
+    # Project-level overrides (e.g. modules/default partition) take precedence over backend defaults.
+    merged_backend: dict = dict(backend_candidate)
+    merged_backend.setdefault("cluster_name", resolved_backend_name)
+    for key in BACKEND_SPECIFIC_KEYS:
+        if key == "cluster_name":
+            continue
+        if key in data and data[key] is not None:
+            merged_backend[key] = data[key]
+
     env_overrides = {
         "user": os.getenv("KOA_USER"),
         "host": os.getenv("KOA_HOST"),
@@ -135,17 +187,18 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
     }
 
     for key, value in env_overrides.items():
-        if value is not None:
-            if key in {"env_watch", "snapshot_excludes"}:
-                data[key] = [item.strip() for item in value.split(",") if item.strip()]
-            else:
-                data[key] = value
+        if value is None:
+            continue
+        if key in {"env_watch", "snapshot_excludes"}:
+            data[key] = [item.strip() for item in value.split(",") if item.strip()]
+        else:
+            merged_backend[key] = value
 
-    missing = [key for key in ("user", "host") if not data.get(key)]
+    missing = [key for key in ("user", "host") if not merged_backend.get(key)]
     if missing:
         raise ValueError(f"Missing required config keys: {', '.join(missing)}")
 
-    identity_file = data.get("identity_file") or None
+    identity_file = merged_backend.get("identity_file") or None
     identity_path: Optional[Path] = None
     if identity_file:
         identity_path = Path(identity_file).expanduser()
@@ -157,19 +210,23 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
 
     config_dir = project_config_path.parent if project_config_path else Path.cwd()
 
-    project_name = data.get("project")
+    project_name = merged_backend.get("project_name") or data.get("project")
     if not project_name:
         if project_config_path and project_config_path.parent != DEFAULT_CONFIG_PATH.parent:
             project_name = project_config_path.parent.name
         else:
             project_name = "default"
 
-    remote_root_value = data.get("remote_root") or (data.get("remote") or {}).get("root")
+    remote_root_value = merged_backend.get("remote_root") or (
+        (data.get("remote") or {}).get("root")
+    )
     if not remote_root_value:
         raise ValueError("remote_root is not configured. Run `koa setup` or set remote_root in your global config.")
     remote_root = Path(remote_root_value).expanduser()
 
-    local_root_value = data.get("local_root") or (data.get("local") or {}).get("root")
+    local_root_value = merged_backend.get("local_root") or (
+        (data.get("local") or {}).get("root")
+    )
     if local_root_value:
         local_root = Path(local_root_value).expanduser()
         if not local_root.is_absolute():
@@ -196,10 +253,11 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         snapshot_excludes = list(snapshot_excludes_raw)
 
     return Config(
-        user=data["user"],
-        host=data["host"],
+        cluster_name=merged_backend.get("cluster_name", resolved_backend_name),
+        user=merged_backend["user"],
+        host=merged_backend["host"],
         identity_file=identity_path,
-        proxy_command=data.get("proxy_command") or None,
+        proxy_command=merged_backend.get("proxy_command") or None,
         project_name=project_name,
         remote_root=remote_root,
         local_root=local_root,
@@ -209,9 +267,15 @@ def load_config(config_path: Optional[PathLikeOrStr] = None) -> Config:
         remote_results_dir=remote_jobs_root,
         local_results_dir=local_jobs_root,
         shared_env_dir=remote_env_dir,
-        default_partition=data.get("default_partition"),
-        python_module=data.get("python_module"),
-        cuda_module=data.get("cuda_module"),
+        default_partition=merged_backend.get("default_partition"),
+        python_module=(
+            merged_backend.get("python_module")
+            or (merged_backend.get("modules") or {}).get("python")
+        ),
+        cuda_module=(
+            merged_backend.get("cuda_module")
+            or (merged_backend.get("modules") or {}).get("cuda")
+        ),
         env_watch_files=env_watch_files,
         snapshot_excludes=snapshot_excludes,
     )

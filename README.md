@@ -38,6 +38,7 @@ The CLI installs the entry point `koa`.
 ## Configure access
 
 1. Run `koa setup` (once per machine) to capture your KOA username, host, and the global workspace roots on KOA and locally. The global config lives at `~/.config/koa/config.yaml`.
+   - The global config now supports multiple Slurm backends via a top-level `backends:` list. Each entry records the connection + workspace settings for a `cluster_name` (e.g. `koa` or `delta`). `koa setup` targets the default `koa` backend; pass `--backend delta` to add or update another cluster.
 2. Inside each repository, run `koa init` to generate a minimal `koa-config.yaml` plus helper scripts. Edit the file only if you want to change per-project module overrides or additional `env_watch` entries.
 3. (Optional) Update `env_watch` and `snapshot_excludes` in `koa-config.yaml` if your project needs custom lockfiles or directories you want to skip during snapshots.
 
@@ -101,7 +102,7 @@ Every submitted job includes a `run_metadata/` folder under its results director
   - `koa runs sync` updates Slurm status and downloads completed runs into the local mirror automatically.
   - `koa runs show <job-id>` prints the recorded metadata (git commit, env hashes, locations) for a single run.
 
-Each command accepts `--config /path/to/config.yaml` if you need to swap between multiple KOA accounts.
+Each command accepts `--config /path/to/config.yaml` if you need to swap between multiple KOA accounts, and `--backend <cluster_name>` to target a specific Slurm backend when you have more than one configured.
 
 ---
 

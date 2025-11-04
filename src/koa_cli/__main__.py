@@ -16,7 +16,13 @@ from typing import Optional
 
 import yaml
 
-from .config import Config, DEFAULT_CONFIG_PATH, load_config
+from .config import (
+    BACKEND_SPECIFIC_KEYS,
+    Config,
+    DEFAULT_BACKEND_NAME,
+    DEFAULT_CONFIG_PATH,
+    load_config,
+)
 from .slurm import (
     cancel_job,
     get_job_io_paths,
@@ -104,6 +110,11 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Path to the KOA config file (defaults to koa-config.yaml in the repository or ~/.config/koa/config.yaml).",
     )
+    parser.add_argument(
+        "--backend",
+        default=None,
+        help="Slurm backend name to use (defaults to 'koa' unless overridden in the config).",
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -138,6 +149,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--default-partition",
         help="Default Slurm partition for submissions (e.g. kill-shared).",
     )
+    setup_parser.add_argument(
+        "--backend",
+        default=None,
+        help="Name of the backend entry to configure (default: koa).",
+    )
 
     init_parser = subparsers.add_parser(
         "init",
@@ -147,6 +163,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="Overwrite existing koa-config.yaml or scripts if present.",
+    )
+    init_parser.add_argument(
+        "--backend",
+        default=None,
+        help="Backend name to use for default templates (default: configured default backend).",
     )
 
     check_parser = subparsers.add_parser(
@@ -218,6 +239,7 @@ def _build_parser() -> argparse.ArgumentParser:
     runs_parser = subparsers.add_parser(
         "runs", help="Manage and inspect recorded KOA job runs."
     )
+    _add_common_arguments(runs_parser)
     runs_subparsers = runs_parser.add_subparsers(dest="runs_command", required=True)
     runs_list = runs_subparsers.add_parser("list", help="List recorded runs.")
     runs_list.add_argument(
@@ -236,7 +258,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _load(args: argparse.Namespace) -> Config:
-    return load_config(args.config)
+    backend = getattr(args, "backend", None)
+    return load_config(args.config, backend_name=backend)
 
 
 def _setup(args: argparse.Namespace) -> int:
@@ -248,42 +271,98 @@ def _setup(args: argparse.Namespace) -> int:
             print(f"Warning: failed to read existing config ({exc}); starting fresh.", file=sys.stderr)
             existing = {}
 
-    default_user = args.user or existing.get("user") or os.getenv("KOA_USER") or os.getenv("USER") or ""
-    default_host = args.host or existing.get("host") or os.getenv("KOA_HOST") or "koa.its.hawaii.edu"
+    backend_name = args.backend or existing.get("default_backend") or DEFAULT_BACKEND_NAME
+
+    backends_existing = existing.get("backends")
+    backend_defaults: dict = {}
+    if isinstance(backends_existing, list):
+        for entry in backends_existing:
+            if isinstance(entry, dict) and entry.get("cluster_name") == backend_name:
+                backend_defaults = dict(entry)
+                break
+    if not backend_defaults:
+        backend_defaults = {
+            key: existing.get(key)
+            for key in BACKEND_SPECIFIC_KEYS
+            if existing.get(key) is not None
+        }
+        if backend_defaults and "cluster_name" not in backend_defaults:
+            backend_defaults["cluster_name"] = backend_name
+
+    default_user = (
+        args.user
+        or backend_defaults.get("user")
+        or existing.get("user")
+        or os.getenv("KOA_USER")
+        or os.getenv("USER")
+        or ""
+    )
+    default_host = (
+        args.host
+        or backend_defaults.get("host")
+        or existing.get("host")
+        or os.getenv("KOA_HOST")
+        or "koa.its.hawaii.edu"
+    )
 
     user = _prompt(args.user, "KOA username", default=default_user, required=True)
     host = _prompt(args.host, "KOA login host", default=default_host, required=True)
 
     suggested_remote_root = (
         args.remote_root
+        or backend_defaults.get("remote_root")
         or existing.get("remote_root")
         or (existing.get("remote", {}) or {}).get("root")
         or f"/mnt/lustre/koa/scratch/{user}/koa-cli"
     )
-    remote_root = _prompt(args.remote_root, "Remote workspace root", default=suggested_remote_root, required=True)
+    remote_root = _prompt(
+        args.remote_root,
+        "Remote workspace root",
+        default=suggested_remote_root,
+        required=True,
+    )
 
     suggested_local_root = (
         args.local_root
+        or backend_defaults.get("local_root")
         or existing.get("local_root")
         or (existing.get("local", {}) or {}).get("root")
         or str(Path("~/koa-projects").expanduser())
     )
-    local_root = _prompt(args.local_root, "Local workspace root", default=suggested_local_root, required=True)
+    local_root = _prompt(
+        args.local_root,
+        "Local workspace root",
+        default=suggested_local_root,
+        required=True,
+    )
 
+    default_partition_value = (
+        args.default_partition
+        or backend_defaults.get("default_partition")
+        or existing.get("default_partition")
+        or "kill-shared"
+    )
     default_partition = _prompt(
         args.default_partition,
         "Default Slurm partition",
-        default=existing.get("default_partition") or "kill-shared",
+        default=default_partition_value,
         required=False,
     )
+
+    modules_defaults: dict = {}
+    candidate_modules = backend_defaults.get("modules")
+    if isinstance(candidate_modules, dict):
+        modules_defaults.update(candidate_modules)
+    elif isinstance(existing.get("modules"), dict):
+        modules_defaults.update(existing["modules"])
 
     default_python = _prompt(
         args.python_module,
         "Preferred Python module",
         default=(
             args.python_module
-            or existing.get("python_module")
-            or (existing.get("modules") or {}).get("python")
+            or backend_defaults.get("python_module")
+            or modules_defaults.get("python")
             or "lang/Python/3.11.5-GCCcore-13.2.0"
         ),
         required=False,
@@ -294,35 +373,73 @@ def _setup(args: argparse.Namespace) -> int:
         "Preferred CUDA module",
         default=(
             args.cuda_module
-            or existing.get("cuda_module")
-            or (existing.get("modules") or {}).get("cuda")
+            or backend_defaults.get("cuda_module")
+            or modules_defaults.get("cuda")
             or "system/CUDA/12.2.0"
         ),
         required=False,
     )
 
-    config_data = existing.copy()
-    config_data.update(
-        {
-            "user": user,
-            "host": host,
-            "remote_root": remote_root,
-            "local_root": local_root,
+    config_data = dict(existing)
+    normalized_backends: list[dict] = []
+    if isinstance(backends_existing, list):
+        for entry in backends_existing:
+            if isinstance(entry, dict):
+                normalized_backends.append(dict(entry))
+    if not normalized_backends:
+        legacy_backend = {
+            key: existing.get(key)
+            for key in BACKEND_SPECIFIC_KEYS
+            if existing.get(key) is not None
         }
-    )
+        if legacy_backend:
+            legacy_backend.setdefault("cluster_name", backend_name)
+            normalized_backends.append(dict(legacy_backend))
 
+    config_data["backends"] = normalized_backends
+    for key in BACKEND_SPECIFIC_KEYS:
+        config_data.pop(key, None)
+
+    backend_entry = None
+    for entry in normalized_backends:
+        if entry.get("cluster_name") == backend_name:
+            backend_entry = entry
+            break
+    if backend_entry is None:
+        backend_entry = {"cluster_name": backend_name}
+        normalized_backends.append(backend_entry)
+
+    backend_entry["user"] = user
+    backend_entry["host"] = host
+    backend_entry["remote_root"] = remote_root
+    backend_entry["local_root"] = local_root
     if default_partition:
-        config_data["default_partition"] = default_partition
+        backend_entry["default_partition"] = default_partition
+    else:
+        backend_entry.pop("default_partition", None)
 
-    modules: dict = config_data.get("modules") or {}
+    backend_modules: dict = dict(backend_entry.get("modules") or {})
     if default_python:
-        modules["python"] = default_python
-        config_data["python_module"] = default_python
+        backend_modules["python"] = default_python
+        backend_entry["python_module"] = default_python
+    else:
+        backend_modules.pop("python", None)
+        backend_entry.pop("python_module", None)
+
     if default_cuda:
-        modules["cuda"] = default_cuda
-        config_data["cuda_module"] = default_cuda
-    if modules:
-        config_data["modules"] = modules
+        backend_modules["cuda"] = default_cuda
+        backend_entry["cuda_module"] = default_cuda
+    else:
+        backend_modules.pop("cuda", None)
+        backend_entry.pop("cuda_module", None)
+
+    if backend_modules:
+        backend_entry["modules"] = backend_modules
+    else:
+        backend_entry.pop("modules", None)
+
+    if not config_data.get("default_backend") or args.backend is None:
+        config_data["default_backend"] = backend_name
 
     # Ensure the config directory exists
     DEFAULT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -340,6 +457,7 @@ def _setup(args: argparse.Namespace) -> int:
 
     print("Updated KOA global configuration:")
     print(f"  File: {DEFAULT_CONFIG_PATH}")
+    print(f"  Backend: {backend_name}")
     print(f"  User: {user}@{host}")
     print(f"  Remote workspace: {remote_root}")
     print(f"  Local workspace: {local_root}")
@@ -419,20 +537,61 @@ def _write_file(path: Path, content: str, *, overwrite: bool = False, executable
 
 def _init_project(args: argparse.Namespace) -> int:
     data = _load_global_config_data()
+    backend_name = args.backend or data.get("default_backend") or DEFAULT_BACKEND_NAME
     cwd = Path.cwd()
     project_name = cwd.name
 
-    user = data.get("user")
-    host = data.get("host")
+    backend_entry: dict = {}
+    backends = data.get("backends")
+    if isinstance(backends, list):
+        for entry in backends:
+            if isinstance(entry, dict) and entry.get("cluster_name") == backend_name:
+                backend_entry = entry
+                break
+    if not backend_entry:
+        backend_entry = {
+            key: data.get(key)
+            for key in BACKEND_SPECIFIC_KEYS
+            if data.get(key) is not None
+        }
+
+    user = backend_entry.get("user") or data.get("user")
+    host = backend_entry.get("host") or data.get("host")
     if not user or not host:
         raise ValueError("Global config missing user/host; run `koa setup` to fix.")
 
-    remote_root = Path(data.get("remote_root") or f"/mnt/lustre/koa/scratch/{user}/koa-cli")
-    local_root = Path(data.get("local_root") or Path("~/koa-projects").expanduser())
+    remote_root_value = (
+        backend_entry.get("remote_root")
+        or data.get("remote_root")
+        or f"/mnt/lustre/koa/scratch/{user}/koa-cli"
+    )
+    remote_root = Path(remote_root_value).expanduser()
 
-    python_module = data.get("python_module") or (data.get("modules") or {}).get("python")
-    cuda_module = data.get("cuda_module") or (data.get("modules") or {}).get("cuda")
-    default_partition = data.get("default_partition") or "kill-shared"
+    local_root_value = backend_entry.get("local_root") or data.get("local_root")
+    if local_root_value:
+        local_root = Path(local_root_value).expanduser()
+    else:
+        local_root = Path("~/koa-projects").expanduser()
+
+    backend_modules = backend_entry.get("modules") or {}
+    global_modules = data.get("modules") or {}
+    python_module = (
+        backend_entry.get("python_module")
+        or backend_modules.get("python")
+        or data.get("python_module")
+        or global_modules.get("python")
+    )
+    cuda_module = (
+        backend_entry.get("cuda_module")
+        or backend_modules.get("cuda")
+        or data.get("cuda_module")
+        or global_modules.get("cuda")
+    )
+    default_partition = (
+        backend_entry.get("default_partition")
+        or data.get("default_partition")
+        or "kill-shared"
+    )
 
     config_path = cwd / "koa-config.yaml"
 
@@ -453,6 +612,7 @@ def _init_project(args: argparse.Namespace) -> int:
     config_template = _load_template("koa-config.yaml.tmpl")
     config_rendered = (
         config_template.replace("__PROJECT_NAME__", project_name)
+        .replace("__DEFAULT_BACKEND__", backend_name)
         .replace("__DEFAULT_PARTITION__", default_partition)
         .replace("__MODULE_SECTION__", modules_block)
         .replace("__ENV_WATCH__", env_watch_lines)
@@ -480,6 +640,7 @@ def _init_project(args: argparse.Namespace) -> int:
     local_jobs_root.mkdir(parents=True, exist_ok=True)
 
     print(f"Initialised KOA project '{project_name}'")
+    print(f"  Backend: {backend_name}")
     print(f"  Config: {config_path}")
     print(f"  Remote project root: {remote_project_root}")
     print(f"  Local project root: {local_project_root}")

@@ -89,8 +89,9 @@ def submit_job(
     args = ["env", *env_vars, "sbatch"]
     sbatch_args_list = list(sbatch_args or [])
 
+    default_partition = config.default_partition or DEFAULT_PARTITION
     if not _has_partition_flag(sbatch_args_list):
-        args.extend(["--partition", DEFAULT_PARTITION])
+        args.extend(["--partition", default_partition])
 
     if run_dir_str:
         if not _has_output_flag(sbatch_args_list):
