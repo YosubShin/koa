@@ -9,6 +9,16 @@ log() {
 # Root of the project snapshot (contains repo/ and run_metadata/)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Load variables from .env if present so downstream commands inherit them
+ENV_FILE="${PROJECT_ROOT}/.env"
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090  # dynamic path from repository root
+  set -a
+  source "${ENV_FILE}"
+  set +a
+  log "Loaded environment variables from ${ENV_FILE}"
+fi
+
 # Shared uv-managed environment (overridable via KOA_SHARED_ENV); lives outside job snapshots
 SHARED_ENV_DIR="${KOA_SHARED_ENV:-${PROJECT_ROOT}/../.venv}"
 mkdir -p "${SHARED_ENV_DIR}"
