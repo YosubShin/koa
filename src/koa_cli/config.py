@@ -8,9 +8,6 @@ from typing import List, Optional, Union
 import yaml
 
 DEFAULT_CONFIG_PATH = Path("~/.config/koa/config.yaml").expanduser()
-LEGACY_CONFIG_PATHS = (
-    Path("~/.config/koa-ml/config.yaml").expanduser(),
-)
 PROJECT_CONFIG_FILENAMES: tuple[str, ...] = ("koa-config.yaml", ".koa-config.yaml")
 
 
@@ -69,9 +66,6 @@ def discover_config_path(start: Optional[PathLikeOrStr] = None) -> Path:
 
     if DEFAULT_CONFIG_PATH.exists():
         return DEFAULT_CONFIG_PATH
-    for legacy_path in LEGACY_CONFIG_PATHS:
-        if legacy_path.exists():
-            return legacy_path
 
     searched_locations = [
         str(Path.cwd().resolve() / name) for name in PROJECT_CONFIG_FILENAMES
@@ -79,7 +73,6 @@ def discover_config_path(start: Optional[PathLikeOrStr] = None) -> Path:
     raise FileNotFoundError(
         "Unable to locate koa-config.yaml in this project. "
         f"Searched: {', '.join(searched_locations)}, {DEFAULT_CONFIG_PATH}, "
-        + ", ".join(str(path) for path in LEGACY_CONFIG_PATHS)
         + ". Create one with `cp koa-config.example.yaml koa-config.yaml`."
     )
 
