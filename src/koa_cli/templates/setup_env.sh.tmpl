@@ -43,6 +43,39 @@ fi
 # Load any configured modules (edit these if your project needs different toolchains)
 __MODULE_BLOCK__
 
+# Install local CUDA Toolkit 12.4 if not already present
+CUDA_MINOR_VERSION="12.4"
+CUDA_FULL_VERSION="12.4.1"
+CUDA_INSTALL_ROOT="${PROJECT_ROOT}/cuda-${CUDA_MINOR_VERSION}"
+CUDA_INSTALLER_FILE="cuda_${CUDA_FULL_VERSION}_550.54.15_linux.run"
+CUDA_INSTALLER_PATH="${PROJECT_ROOT}/${CUDA_INSTALLER_FILE}"
+CUDA_DOWNLOAD_URL="https://developer.download.nvidia.com/compute/cuda/${CUDA_FULL_VERSION}/local_installers/${CUDA_INSTALLER_FILE}"
+
+if [[ ! -x "${CUDA_INSTALL_ROOT}/bin/nvcc" ]]; then
+  log "Ensuring CUDA Toolkit ${CUDA_MINOR_VERSION} exists at ${CUDA_INSTALL_ROOT}"
+  mkdir -p "${CUDA_INSTALL_ROOT}"
+
+  if [[ ! -f "${CUDA_INSTALLER_PATH}" ]]; then
+    log "Downloading CUDA Toolkit installer from ${CUDA_DOWNLOAD_URL}"
+    curl -fL "${CUDA_DOWNLOAD_URL}" -o "${CUDA_INSTALLER_PATH}"
+  fi
+
+  chmod +x "${CUDA_INSTALLER_PATH}"
+  "${CUDA_INSTALLER_PATH}" --silent --toolkit --toolkitpath="${CUDA_INSTALL_ROOT}"
+  rm -f "${CUDA_INSTALLER_PATH}"
+else
+  log "Found existing CUDA Toolkit at ${CUDA_INSTALL_ROOT}; skipping install"
+fi
+
+export CUDA_HOME="${CUDA_INSTALL_ROOT}"
+export CUDA_PATH="${CUDA_INSTALL_ROOT}"
+export PATH="${CUDA_INSTALL_ROOT}/bin:${PATH}"
+if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
+  export LD_LIBRARY_PATH="${CUDA_INSTALL_ROOT}/lib64:${LD_LIBRARY_PATH}"
+else
+  export LD_LIBRARY_PATH="${CUDA_INSTALL_ROOT}/lib64"
+fi
+
 # Prefer python3, fall back to python
 python_bin="$(command -v python3 || command -v python)"
 
