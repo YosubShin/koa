@@ -10,6 +10,7 @@ import yaml
 DEFAULT_CONFIG_PATH = Path("~/.config/koa/config.yaml").expanduser()
 PROJECT_CONFIG_FILENAMES: tuple[str, ...] = ("koa-config.yaml", ".koa-config.yaml")
 DEFAULT_BACKEND_NAME = "koa"
+DEFAULT_CUDA_MINOR_VERSION = "12.8"
 BACKEND_SPECIFIC_KEYS: set[str] = {
     "cluster_name",
     "user",
@@ -20,9 +21,7 @@ BACKEND_SPECIFIC_KEYS: set[str] = {
     "remote_root",
     "local_root",
     "default_partition",
-    "python_module",
-    "cuda_module",
-    "modules",
+    "cuda_minor_version",
 }
 
 
@@ -43,8 +42,7 @@ class Config:
     local_results_dir: Path = Path("./results/projects/default/jobs")
     shared_env_dir: Path = Path("~/koa-cli/projects/default/envs/uv")
     default_partition: Optional[str] = None
-    python_module: Optional[str] = None
-    cuda_module: Optional[str] = None
+    cuda_minor_version: str = DEFAULT_CUDA_MINOR_VERSION
     env_watch_files: List[str] = field(default_factory=list)
     snapshot_excludes: List[str] = field(default_factory=list)
 
@@ -163,9 +161,10 @@ def load_config(
         }
         backend_candidate.setdefault("cluster_name", resolved_backend_name)
 
-    # Project-level overrides (e.g. modules/default partition) take precedence over backend defaults.
+    # Project-level overrides take precedence over backend defaults.
     merged_backend: dict = dict(backend_candidate)
     merged_backend.setdefault("cluster_name", resolved_backend_name)
+    merged_backend.setdefault("cuda_minor_version", DEFAULT_CUDA_MINOR_VERSION)
     for key in BACKEND_SPECIFIC_KEYS:
         if key == "cluster_name":
             continue
@@ -179,8 +178,8 @@ def load_config(
         "remote_root": os.getenv("KOA_REMOTE_ROOT"),
         "local_root": os.getenv("KOA_LOCAL_ROOT"),
         "default_partition": os.getenv("KOA_DEFAULT_PARTITION"),
-        "python_module": os.getenv("KOA_PYTHON_MODULE"),
-        "cuda_module": os.getenv("KOA_CUDA_MODULE"),
+        "cuda_minor_version": os.getenv("KOA_CUDA_VERSION")
+        or os.getenv("KOA_CUDA_MINOR_VERSION"),
         "env_watch": os.getenv("KOA_ENV_WATCH"),
         "snapshot_excludes": os.getenv("KOA_SNAPSHOT_EXCLUDES"),
         "proxy_command": os.getenv("KOA_PROXY_COMMAND"),
@@ -268,14 +267,8 @@ def load_config(
         local_results_dir=local_jobs_root,
         shared_env_dir=remote_env_dir,
         default_partition=merged_backend.get("default_partition"),
-        python_module=(
-            merged_backend.get("python_module")
-            or (merged_backend.get("modules") or {}).get("python")
-        ),
-        cuda_module=(
-            merged_backend.get("cuda_module")
-            or (merged_backend.get("modules") or {}).get("cuda")
-        ),
+        cuda_minor_version=merged_backend.get("cuda_minor_version")
+        or DEFAULT_CUDA_MINOR_VERSION,
         env_watch_files=env_watch_files,
         snapshot_excludes=snapshot_excludes,
     )

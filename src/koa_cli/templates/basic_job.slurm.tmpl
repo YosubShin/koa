@@ -8,8 +8,8 @@
 
 set -euo pipefail
 
-module purge >/dev/null 2>&1 || true
-__MODULE_LINES__
+# Load site-specific modules or environments here if required.
+# module load your/compiler
 
 RESULTS_ROOT="${KOA_ML_RESULTS_ROOT:-$HOME/koa-results}"
 JOB_DIR="${KOA_RUN_DIR:-${RESULTS_ROOT}/${SLURM_JOB_ID}}"

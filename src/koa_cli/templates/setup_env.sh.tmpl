@@ -25,7 +25,7 @@ mkdir -p "${SHARED_ENV_DIR}"
 ENV_PYTHON="${SHARED_ENV_DIR}/bin/python"
 
 # Add uv to PATH
-export PATH=$HOME/.local/bin:$PATH
+export PATH="${HOME}/.local/bin:${PATH}"
 
 # Cache location for environment hashes (used to detect changes between runs)
 ENV_CACHE_DIR="${SHARED_ENV_DIR}/.koa"
@@ -40,14 +40,30 @@ if [[ -z "${RUN_METADATA_DIR}" && -n "${KOA_ML_RESULTS_ROOT:-}" && -n "${SLURM_J
   RUN_METADATA_DIR="${KOA_ML_RESULTS_ROOT}/${SLURM_JOB_ID}/run_metadata"
 fi
 
-# Load any configured modules (edit these if your project needs different toolchains)
-__MODULE_BLOCK__
+KOA_PROJECT_ROOT="${KOA_PROJECT_ROOT:-${PROJECT_ROOT}}"
 
-# Install local CUDA Toolkit 12.4 if not already present
-CUDA_MINOR_VERSION="12.4"
-CUDA_FULL_VERSION="12.4.1"
+# Install local CUDA Toolkit (configurable via CUDA_MINOR_VERSION).
+CUDA_MINOR_VERSION="${CUDA_MINOR_VERSION:-__CUDA_MINOR_VERSION__}"
+
+case "${CUDA_MINOR_VERSION}" in
+  12.4)
+    CUDA_FULL_VERSION="${CUDA_FULL_VERSION:-12.4.1}"
+    CUDA_INSTALLER_TAG="${CUDA_INSTALLER_TAG:-550.54.15}"
+    ;;
+  12.8)
+    CUDA_FULL_VERSION="${CUDA_FULL_VERSION:-12.8.0}"
+    CUDA_INSTALLER_TAG="${CUDA_INSTALLER_TAG:-570.86.10}"
+    ;;
+  *)
+    if [[ -z "${CUDA_FULL_VERSION:-}" || -z "${CUDA_INSTALLER_TAG:-}" ]]; then
+      log "Unsupported CUDA_MINOR_VERSION='${CUDA_MINOR_VERSION}'. Set CUDA_FULL_VERSION and CUDA_INSTALLER_TAG to override."
+      exit 1
+    fi
+    ;;
+esac
+
 CUDA_INSTALL_ROOT="${KOA_PROJECT_ROOT}/cuda-${CUDA_MINOR_VERSION}"
-CUDA_INSTALLER_FILE="cuda_${CUDA_FULL_VERSION}_550.54.15_linux.run"
+CUDA_INSTALLER_FILE="${CUDA_INSTALLER_FILE:-cuda_${CUDA_FULL_VERSION}_${CUDA_INSTALLER_TAG}_linux.run}"
 CUDA_INSTALLER_PATH="${KOA_PROJECT_ROOT}/${CUDA_INSTALLER_FILE}"
 CUDA_DOWNLOAD_URL="https://developer.download.nvidia.com/compute/cuda/${CUDA_FULL_VERSION}/local_installers/${CUDA_INSTALLER_FILE}"
 

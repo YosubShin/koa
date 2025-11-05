@@ -72,6 +72,8 @@ def submit_job(
     copy_to_remote(config, local_job_script, remote_script)
 
     env_vars: list[str] = [f"KOA_ML_CODE_ROOT={config.remote_code_dir}"]
+    if config.cuda_minor_version:
+        env_vars.append(f"CUDA_MINOR_VERSION={config.cuda_minor_version}")
     remote_results_root: Optional[Path] = config.remote_results_dir
     if remote_results_root:
         env_vars.append(f"KOA_ML_RESULTS_ROOT={remote_results_root}")

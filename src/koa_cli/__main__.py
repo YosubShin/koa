@@ -21,6 +21,7 @@ from .config import (
     Config,
     DEFAULT_BACKEND_NAME,
     DEFAULT_CONFIG_PATH,
+    DEFAULT_CUDA_MINOR_VERSION,
     load_config,
 )
 from .slurm import (
@@ -125,7 +126,7 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     setup_parser = subparsers.add_parser(
-        "setup", help="Configure global KOA defaults (user, roots, modules)."
+        "setup", help="Configure global KOA defaults (user, workspace roots, CUDA version)."
     )
     setup_parser.add_argument("--user", help="KOA username")
     setup_parser.add_argument("--host", help="KOA login host (default: koa.its.hawaii.edu)")
@@ -138,14 +139,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Top-level local workspace directory for KOA project mirrors.",
     )
     setup_parser.add_argument(
-        "--python-module",
-        help="Preferred KOA Python module to load in job scripts.",
-    )
-    setup_parser.add_argument(
-        "--cuda-module",
-        help="Preferred KOA CUDA module to load in job scripts.",
-    )
-    setup_parser.add_argument(
         "--default-partition",
         help="Default Slurm partition for submissions (e.g. kill-shared).",
     )
@@ -153,6 +146,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--backend",
         default=None,
         help="Name of the backend entry to configure (default: koa).",
+    )
+    setup_parser.add_argument(
+        "--cuda-version",
+        default=None,
+        help="Default CUDA minor version to install for this backend (e.g. 12.4 or 12.8).",
     )
 
     init_parser = subparsers.add_parser(
@@ -168,6 +166,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--backend",
         default=None,
         help="Backend name to use for default templates (default: configured default backend).",
+    )
+    init_parser.add_argument(
+        "--cuda-version",
+        default=None,
+        help="Override the CUDA minor version for this project (default: backend setting).",
     )
 
     check_parser = subparsers.add_parser(
@@ -349,36 +352,19 @@ def _setup(args: argparse.Namespace) -> int:
         required=False,
     )
 
-    modules_defaults: dict = {}
-    candidate_modules = backend_defaults.get("modules")
-    if isinstance(candidate_modules, dict):
-        modules_defaults.update(candidate_modules)
-    elif isinstance(existing.get("modules"), dict):
-        modules_defaults.update(existing["modules"])
-
-    default_python = _prompt(
-        args.python_module,
-        "Preferred Python module",
-        default=(
-            args.python_module
-            or backend_defaults.get("python_module")
-            or modules_defaults.get("python")
-            or "lang/Python/3.11.5-GCCcore-13.2.0"
-        ),
-        required=False,
+    default_cuda_minor_value = (
+        args.cuda_version
+        or backend_defaults.get("cuda_minor_version")
+        or existing.get("cuda_minor_version")
+        or DEFAULT_CUDA_MINOR_VERSION
     )
-
-    default_cuda = _prompt(
-        args.cuda_module,
-        "Preferred CUDA module",
-        default=(
-            args.cuda_module
-            or backend_defaults.get("cuda_module")
-            or modules_defaults.get("cuda")
-            or "system/CUDA/12.2.0"
-        ),
-        required=False,
+    cuda_minor_version = _prompt(
+        args.cuda_version,
+        "Default CUDA minor version (e.g. 12.4 or 12.8)",
+        default=str(default_cuda_minor_value),
+        required=True,
     )
+    cuda_minor_version = cuda_minor_version.strip() or DEFAULT_CUDA_MINOR_VERSION
 
     config_data = dict(existing)
     normalized_backends: list[dict] = []
@@ -399,6 +385,8 @@ def _setup(args: argparse.Namespace) -> int:
     config_data["backends"] = normalized_backends
     for key in BACKEND_SPECIFIC_KEYS:
         config_data.pop(key, None)
+    for legacy_key in ("python_module", "cuda_module", "modules"):
+        config_data.pop(legacy_key, None)
 
     backend_entry = None
     for entry in normalized_backends:
@@ -413,30 +401,12 @@ def _setup(args: argparse.Namespace) -> int:
     backend_entry["host"] = host
     backend_entry["remote_root"] = remote_root
     backend_entry["local_root"] = local_root
+    backend_entry["cuda_minor_version"] = cuda_minor_version
     if default_partition:
         backend_entry["default_partition"] = default_partition
     else:
         backend_entry.pop("default_partition", None)
 
-    backend_modules: dict = dict(backend_entry.get("modules") or {})
-    if default_python:
-        backend_modules["python"] = default_python
-        backend_entry["python_module"] = default_python
-    else:
-        backend_modules.pop("python", None)
-        backend_entry.pop("python_module", None)
-
-    if default_cuda:
-        backend_modules["cuda"] = default_cuda
-        backend_entry["cuda_module"] = default_cuda
-    else:
-        backend_modules.pop("cuda", None)
-        backend_entry.pop("cuda_module", None)
-
-    if backend_modules:
-        backend_entry["modules"] = backend_modules
-    else:
-        backend_entry.pop("modules", None)
 
     if not config_data.get("default_backend") or args.backend is None:
         config_data["default_backend"] = backend_name
@@ -463,10 +433,7 @@ def _setup(args: argparse.Namespace) -> int:
     print(f"  Local workspace: {local_root}")
     if default_partition:
         print(f"  Default partition: {default_partition}")
-    if default_python:
-        print(f"  Python module: {default_python}")
-    if default_cuda:
-        print(f"  CUDA module: {default_cuda}")
+    print(f"  CUDA minor version: {cuda_minor_version}")
 
     return 0
 
@@ -479,50 +446,20 @@ def _load_global_config_data() -> dict:
     return yaml.safe_load(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")) or {}
 
 
-def _render_setup_env_script(python_module: Optional[str], cuda_module: Optional[str]) -> str:
-    module_lines = ["module purge >/dev/null 2>&1 || true"]
-    if python_module:
-        module_lines.append(f"module load {python_module} >/dev/null 2>&1 || true")
-    else:
-        module_lines.append("module load ${PYTHON_MODULE:-} >/dev/null 2>&1 || true")
-    if cuda_module:
-        module_lines.append(f"module load {cuda_module} >/dev/null 2>&1 || true")
-    else:
-        module_lines.append("module load ${CUDA_MODULE:-} >/dev/null 2>&1 || true")
-
-    module_block = "\n".join(module_lines)
-    if module_block:
-        module_block += "\n"
-
+def _render_setup_env_script(cuda_minor_version: Optional[str]) -> str:
     template = _load_template("setup_env.sh.tmpl")
-    return template.replace("__MODULE_BLOCK__", module_block)
+    version = cuda_minor_version or DEFAULT_CUDA_MINOR_VERSION
+    return template.replace("__CUDA_MINOR_VERSION__", version)
 
 
 def _render_basic_job_template(
     project_name: str,
     default_partition: str,
-    python_module: Optional[str],
-    cuda_module: Optional[str],
 ) -> str:
-    module_lines: list[str] = []
-    if python_module:
-        module_lines.append(f"module load {python_module} >/dev/null 2>&1 || true")
-    else:
-        module_lines.append("module load ${PYTHON_MODULE:-} >/dev/null 2>&1 || true")
-    if cuda_module:
-        module_lines.append(f"module load {cuda_module} >/dev/null 2>&1 || true")
-    else:
-        module_lines.append("module load ${CUDA_MODULE:-} >/dev/null 2>&1 || true")
-
-    module_block = "\n".join(module_lines)
-    if module_block:
-        module_block += "\n"
-
     template = _load_template("basic_job.slurm.tmpl")
     return (
         template.replace("__JOB_NAME__", project_name)
         .replace("__DEFAULT_PARTITION__", default_partition)
-        .replace("__MODULE_LINES__", module_block)
     )
 
 
@@ -573,39 +510,22 @@ def _init_project(args: argparse.Namespace) -> int:
     else:
         local_root = Path("~/koa-projects").expanduser()
 
-    backend_modules = backend_entry.get("modules") or {}
-    global_modules = data.get("modules") or {}
-    python_module = (
-        backend_entry.get("python_module")
-        or backend_modules.get("python")
-        or data.get("python_module")
-        or global_modules.get("python")
-    )
-    cuda_module = (
-        backend_entry.get("cuda_module")
-        or backend_modules.get("cuda")
-        or data.get("cuda_module")
-        or global_modules.get("cuda")
-    )
     default_partition = (
         backend_entry.get("default_partition")
         or data.get("default_partition")
         or "kill-shared"
     )
 
-    config_path = cwd / "koa-config.yaml"
+    override_cuda_minor = args.cuda_version.strip() if args.cuda_version else None
+    backend_cuda_minor = (
+        override_cuda_minor
+        or backend_entry.get("cuda_minor_version")
+        or data.get("cuda_minor_version")
+        or DEFAULT_CUDA_MINOR_VERSION
+    )
+    project_cuda_minor = str(backend_cuda_minor).strip() or DEFAULT_CUDA_MINOR_VERSION
 
-    modules_section: dict[str, str] = {}
-    if python_module:
-        modules_section["python"] = python_module
-    if cuda_module:
-        modules_section["cuda"] = cuda_module
-    modules_block = ""
-    if modules_section:
-        module_lines = ["modules:"]
-        for key, value in modules_section.items():
-            module_lines.append(f"  {key}: {value}")
-        modules_block = "\n".join(module_lines) + "\n\n"
+    config_path = cwd / "koa-config.yaml"
 
     env_watch_lines = "\n".join(f"  - {item}" for item in DEFAULT_ENV_WATCH)
 
@@ -613,8 +533,8 @@ def _init_project(args: argparse.Namespace) -> int:
     config_rendered = (
         config_template.replace("__PROJECT_NAME__", project_name)
         .replace("__DEFAULT_BACKEND__", backend_name)
+        .replace("__CUDA_MINOR_VERSION__", project_cuda_minor)
         .replace("__DEFAULT_PARTITION__", default_partition)
-        .replace("__MODULE_SECTION__", modules_block)
         .replace("__ENV_WATCH__", env_watch_lines)
     )
     _write_file(config_path, config_rendered, overwrite=args.force)
@@ -622,14 +542,14 @@ def _init_project(args: argparse.Namespace) -> int:
     scripts_dir = cwd / "scripts"
     _write_file(
         scripts_dir / "setup_env.sh",
-        _render_setup_env_script(python_module, cuda_module),
+        _render_setup_env_script(project_cuda_minor),
         overwrite=args.force,
         executable=True,
     )
 
     _write_file(
         scripts_dir / "basic_job.slurm",
-        _render_basic_job_template(project_name, default_partition, python_module, cuda_module),
+        _render_basic_job_template(project_name, default_partition),
         overwrite=args.force,
         executable=True,
     )
@@ -642,6 +562,7 @@ def _init_project(args: argparse.Namespace) -> int:
     print(f"Initialised KOA project '{project_name}'")
     print(f"  Backend: {backend_name}")
     print(f"  Config: {config_path}")
+    print(f"  CUDA minor version: {project_cuda_minor}")
     print(f"  Remote project root: {remote_project_root}")
     print(f"  Local project root: {local_project_root}")
     return 0
