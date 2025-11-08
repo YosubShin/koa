@@ -80,20 +80,39 @@ def copy_to_remote(
     recursive: bool = False,
 ) -> None:
     """
-    Copy a local file or directory to the KOA host via scp.
+    Copy a local file or directory to the KOA host via rsync.
     """
-    args = _scp_base_args(config)
+    local_path = Path(local_path).expanduser()
+    if not local_path.exists():
+        raise FileNotFoundError(f"Local path does not exist: {local_path}")
+
+    if local_path.is_dir():
+        recursive = True
+
+    source = str(local_path)
     if recursive:
-        args.append("-r")
-    scp_command = [
-        *args,
-        str(local_path),
+        source = f"{source.rstrip('/')}/"
+
+    rsync_command: list[str] = [
+        "rsync",
+        "-avz",
+        "--partial",
+        "--progress",
+        "-e",
+        _rsync_ssh_command(config),
+        source,
         f"{config.login}:{remote_path}",
     ]
-    result = subprocess.run(scp_command, check=False, text=True, capture_output=True)
+
+    result = subprocess.run(
+        rsync_command,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
     if result.returncode != 0:
         raise SSHError(
-            f"SCP upload failed ({result.returncode}): {' '.join(scp_command)}\n"
+            f"rsync upload failed ({result.returncode}): {' '.join(rsync_command)}\n"
             f"stderr: {result.stderr}"
         )
 
