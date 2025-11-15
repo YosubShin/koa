@@ -22,6 +22,7 @@ BACKEND_SPECIFIC_KEYS: set[str] = {
     "local_root",
     "default_partition",
     "cuda_minor_version",
+    "dashboard_base_url",
 }
 
 
@@ -45,6 +46,7 @@ class Config:
     cuda_minor_version: str = DEFAULT_CUDA_MINOR_VERSION
     env_watch_files: List[str] = field(default_factory=list)
     snapshot_excludes: List[str] = field(default_factory=list)
+    dashboard_base_url: Optional[str] = None
 
     @property
     def login(self) -> str:
@@ -183,6 +185,7 @@ def load_config(
         "env_watch": os.getenv("KOA_ENV_WATCH"),
         "snapshot_excludes": os.getenv("KOA_SNAPSHOT_EXCLUDES"),
         "proxy_command": os.getenv("KOA_PROXY_COMMAND"),
+        "dashboard_base_url": os.getenv("KOA_DASHBOARD_BASE_URL"),
     }
 
     for key, value in env_overrides.items():
@@ -271,4 +274,5 @@ def load_config(
         or DEFAULT_CUDA_MINOR_VERSION,
         env_watch_files=env_watch_files,
         snapshot_excludes=snapshot_excludes,
+        dashboard_base_url=merged_backend.get("dashboard_base_url"),
     )

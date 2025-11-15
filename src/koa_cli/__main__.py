@@ -8,6 +8,7 @@ import re
 import shlex
 import uuid
 import shutil
+import subprocess
 import sys
 import tempfile
 from datetime import datetime
@@ -152,6 +153,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Default CUDA minor version to install for this backend (e.g. 12.4 or 12.8).",
     )
+    setup_parser.add_argument(
+        "--dashboard-base-url",
+        default=None,
+        help="Base URL for the cluster web file browser (e.g. https://koa.its.hawaii.edu/pun/sys/dashboard/files/fs).",
+    )
 
     init_parser = subparsers.add_parser(
         "init",
@@ -182,6 +188,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "jobs", help="List active KOA jobs for the configured user."
     )
     _add_common_arguments(jobs_parser)
+
+    dashboard_parser = subparsers.add_parser(
+        "dashboard", help="Launch the KOA Streamlit dashboard."
+    )
+    _add_common_arguments(dashboard_parser)
+    dashboard_parser.add_argument(
+        "--cache-ttl",
+        type=int,
+        default=30,
+        help="Cache duration (seconds) for dashboard data queries (default: 30).",
+    )
 
     cancel_parser = subparsers.add_parser("cancel", help="Cancel a KOA job by id.")
     _add_common_arguments(cancel_parser)
@@ -352,6 +369,18 @@ def _setup(args: argparse.Namespace) -> int:
         required=False,
     )
 
+    suggested_dashboard_base = (
+        args.dashboard_base_url
+        or backend_defaults.get("dashboard_base_url")
+        or existing.get("dashboard_base_url")
+    )
+    dashboard_base_url = _prompt(
+        args.dashboard_base_url,
+        "Web dashboard base URL (optional, e.g. https://koa.its.hawaii.edu/pun/sys/dashboard/files/fs)",
+        default=suggested_dashboard_base or "",
+        required=False,
+    ).strip()
+
     default_cuda_minor_value = (
         args.cuda_version
         or backend_defaults.get("cuda_minor_version")
@@ -406,6 +435,10 @@ def _setup(args: argparse.Namespace) -> int:
         backend_entry["default_partition"] = default_partition
     else:
         backend_entry.pop("default_partition", None)
+    if dashboard_base_url:
+        backend_entry["dashboard_base_url"] = dashboard_base_url
+    else:
+        backend_entry.pop("dashboard_base_url", None)
 
 
     if not config_data.get("default_backend") or args.backend is None:
@@ -433,6 +466,8 @@ def _setup(args: argparse.Namespace) -> int:
     print(f"  Local workspace: {local_root}")
     if default_partition:
         print(f"  Default partition: {default_partition}")
+    if dashboard_base_url:
+        print(f"  Web dashboard: {dashboard_base_url}")
     print(f"  CUDA minor version: {cuda_minor_version}")
 
     return 0
@@ -647,31 +682,33 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
             shutil.copytree(manifest_path, local_job_dir / "run_metadata")
             shutil.copytree(repo_snapshot_path, local_job_dir / "repo")
 
-        job_id = submit_job(
-            config,
-            args.job_script,
-            sbatch_args=sbatch_args,
-            remote_name=args.remote_name,
-            run_dir=remote_job_dir,
-        )
+    job_id = submit_job(
+        config,
+        args.job_script,
+        sbatch_args=sbatch_args,
+        remote_name=args.remote_name,
+        run_dir=remote_job_dir,
+        job_desc=args.desc,
+    )
 
-        update_manifest_metadata(
-            manifest_path,
-            job_id=job_id,
-            remote_code_dir=str(config.remote_code_dir),
-            remote_results_dir=str(config.remote_results_dir) if config.remote_results_dir else None,
-        )
+    update_manifest_metadata(
+        manifest_path,
+        job_id=job_id,
+        remote_code_dir=str(config.remote_code_dir),
+        remote_results_dir=str(config.remote_results_dir) if config.remote_results_dir else None,
+    )
 
-        manifest_data = json.loads((manifest_path / "manifest.json").read_text(encoding="utf-8"))
+    manifest_data = json.loads((manifest_path / "manifest.json").read_text(encoding="utf-8"))
 
-        record_submission(
-            config,
-            job_id=job_id,
-            sbatch_args=sbatch_args,
-            manifest=manifest_data,
-            local_job_dir=local_job_dir,
-            remote_job_dir=remote_job_dir,
-        )
+    record_submission(
+        config,
+        job_id=job_id,
+        sbatch_args=sbatch_args,
+        manifest=manifest_data,
+        local_job_dir=local_job_dir,
+        remote_job_dir=remote_job_dir,
+        description=args.desc,
+    )
 
     print(f"Submitted KOA job {job_id}")
     return 0
@@ -691,6 +728,41 @@ def _jobs(_: argparse.Namespace, config: Config) -> int:
 def _check(_: argparse.Namespace, config: Config) -> int:
     print(run_health_checks(config), end="")
     return 0
+
+
+def _dashboard(args: argparse.Namespace, config: Config) -> int:
+    try:
+        import streamlit  # type: ignore  # noqa: F401
+    except ImportError:
+        print(
+            "Streamlit is not installed. Install it with `pip install koa-cli[dashboard]` or `pip install streamlit`.",
+            file=sys.stderr,
+        )
+        return 1
+
+    script = resources.files("koa_cli").joinpath("dashboard_app.py")
+    script_path = str(script)
+    if not os.path.exists(script_path):
+        print("Unable to locate the dashboard app script.", file=sys.stderr)
+        return 1
+
+    cmd = [sys.executable, "-m", "streamlit", "run", script_path]
+    extra_args: list[str] = []
+    if args.config:
+        extra_args.extend(["--config", str(args.config)])
+    backend_name = args.backend or config.cluster_name
+    if backend_name:
+        extra_args.extend(["--backend", backend_name])
+    cache_ttl = max(10, args.cache_ttl or 0)
+    extra_args.extend(["--cache-ttl", str(cache_ttl)])
+
+    if extra_args:
+        cmd.append("--")
+        cmd.extend(extra_args)
+
+    print("Launching koa dashboard via Streamlit. Press Ctrl+C to stop.")
+    result = subprocess.run(cmd)
+    return result.returncode
 
 
 
@@ -790,6 +862,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             return _cancel(args, config)
         if args.command == "jobs":
             return _jobs(args, config)
+        if args.command == "dashboard":
+            return _dashboard(args, config)
         if args.command == "check":
             return _check(args, config)
         if args.command == "logs":

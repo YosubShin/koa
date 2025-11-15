@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
@@ -9,6 +9,7 @@ from .config import Config
 from .ssh import copy_from_remote, run_ssh
 
 RUN_INDEX_FILENAME = "runs.json"
+RUN_LOOKBACK_HOURS = 48
 
 
 def _index_path(local_results_dir: Path) -> Path:
@@ -42,6 +43,7 @@ def record_submission(
     manifest: dict,
     local_job_dir: Optional[Path],
     remote_job_dir: Optional[Path],
+    description: Optional[str] = None,
 ) -> None:
     if not config.local_results_dir:
         return
@@ -61,6 +63,7 @@ def record_submission(
         "remote_job_dir": str(remote_job_dir) if remote_job_dir else None,
         "local_job_dir": str(local_job_dir) if local_job_dir else None,
         "git": manifest.get("git"),
+        "description": description,
     }
     runs[job_id] = entry
     _save_index(local_results, index)
@@ -76,12 +79,94 @@ def list_runs(config: Config) -> list[dict]:
     return entries
 
 
+def list_all_runs(config: Config) -> list[dict]:
+    """
+    Aggregate run entries across every project under the configured local_root.
+    """
+    if not config.local_root:
+        return []
+
+    root = config.local_root.expanduser()
+    projects_dir = root / "projects"
+    if not projects_dir.exists():
+        return []
+
+    aggregated: list[dict] = []
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=RUN_LOOKBACK_HOURS)
+    for project_dir in sorted(projects_dir.iterdir()):
+        jobs_dir = project_dir / "jobs"
+        if not jobs_dir.is_dir():
+            continue
+        index = _load_index(jobs_dir)
+        runs = index.get("runs", {})
+        for entry in runs.values():
+            enriched = dict(entry)
+            enriched.setdefault("project_name", project_dir.name)
+            submitted_raw = enriched.get("submitted_at")
+            if submitted_raw:
+                try:
+                    submitted_ts = datetime.fromisoformat(submitted_raw.replace("Z", "+00:00"))
+                except ValueError:
+                    submitted_ts = None
+            else:
+                submitted_ts = None
+            if submitted_ts and submitted_ts < cutoff:
+                continue
+            aggregated.append(enriched)
+
+    aggregated.sort(key=lambda item: item.get("submitted_at") or "", reverse=True)
+    return aggregated
+
+
 def show_run(config: Config, job_id: str) -> Optional[dict]:
     runs = list_runs(config)
     for entry in runs:
         if entry.get("job_id") == job_id:
             return entry
     return None
+
+
+def _project_jobs_dirs(config: Config) -> list[Path]:
+    dirs: list[Path] = []
+    if config.local_root:
+        projects_dir = config.local_root.expanduser() / "projects"
+        if projects_dir.exists():
+            for project_dir in projects_dir.iterdir():
+                jobs_dir = project_dir / "jobs"
+                if jobs_dir.is_dir():
+                    dirs.append(jobs_dir)
+    elif config.local_results_dir:
+        dirs.append(config.local_results_dir.expanduser())
+    return dirs
+
+
+def _mutate_run_entry(config: Config, job_id: str, mutator) -> bool:
+    for jobs_dir in _project_jobs_dirs(config):
+        index = _load_index(jobs_dir)
+        runs = index.get("runs", {})
+        if job_id in runs:
+            mutator(runs[job_id])
+            _save_index(jobs_dir, index)
+            return True
+    return False
+
+
+def set_run_description(config: Config, job_id: str, description: Optional[str]) -> bool:
+    def _mutate(entry: dict) -> None:
+        entry["description"] = description
+
+    return _mutate_run_entry(config, job_id, _mutate)
+
+
+def delete_run_entry(config: Config, job_id: str) -> bool:
+    for jobs_dir in _project_jobs_dirs(config):
+        index = _load_index(jobs_dir)
+        runs = index.get("runs", {})
+        if job_id in runs:
+            runs.pop(job_id, None)
+            _save_index(jobs_dir, index)
+            return True
+    return False
 
 
 def _batched(iterable: Iterable[str], size: int) -> Iterable[list[str]]:

@@ -62,6 +62,7 @@ def submit_job(
     sbatch_args: Optional[Iterable[str]] = None,
     remote_name: Optional[str] = None,
     run_dir: Optional[Path] = None,
+    job_desc: Optional[str] = None,
 ) -> str:
     if not local_job_script.exists():
         raise FileNotFoundError(f"Job script not found: {local_job_script}")
@@ -87,6 +88,8 @@ def submit_job(
         run_dir_str = str(run_dir)
         env_vars.append(f"KOA_RUN_DIR={run_dir_str}")
         env_vars.append(f"KOA_RUN_METADATA_DIR={run_dir_str}/run_metadata")
+    if job_desc:
+        env_vars.append(f"KOA_JOB_DESC={job_desc}")
 
     args = ["env", *env_vars, "sbatch"]
     sbatch_args_list = list(sbatch_args or [])
