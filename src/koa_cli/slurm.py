@@ -75,6 +75,7 @@ def submit_job(
     env_vars: list[str] = [
         f"KOA_ML_CODE_ROOT={config.remote_code_dir}",
         f"KOA_BACKEND={config.cluster_name}",
+        f"KOA_REMOTE_ROOT={config.remote_root}",
     ]
     if config.cuda_minor_version:
         env_vars.append(f"CUDA_MINOR_VERSION={config.cuda_minor_version}")
