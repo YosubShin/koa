@@ -14,6 +14,35 @@ A lightweight command-line companion for the University of Hawai'i KOA cluster. 
 
 ---
 
+# Prerequisites
+
+Add this to `~/.bashrc` in HPC environment in order to avoid using up disk quota.
+```bash
+export XDG_CACHE_HOME=<path to your scratch folder. eg. /mnt/lustre/koa/scratch/yosubs/cache>
+export HF_HOME=$XDG_CACHE_HOME/hf
+export TRITON_CACHE_DIR=$XDG_CACHE_HOME/triton
+export TORCH_HOME=$XDG_CACHE_HOME/torch
+export PIP_CACHE_DIR=$XDG_CACHE_HOME/pip
+export TMPDIR=$XDG_CACHE_HOME/tmp
+export APPTAINER_CACHEDIR=$XDG_CACHE_HOME/apptainer
+```
+
+Setup ssh config at `~/.ssh/config` so that it doesn't keep asking for multi-factor authentication.
+```bash
+Host koa koa.its.hawaii.edu
+  HostName koa.its.hawaii.edu
+  User <username: e.g. yosubs>
+  IdentitiesOnly yes
+  IdentityFile <path to secret key: e.g. ~/.ssh/koa_key>
+  ControlMaster auto
+  ControlPath ~/.ssh/cm-%C
+  ControlPersist 1h
+  ServerAliveInterval 60
+  ServerAliveCountMax 3
+  TCPKeepAlive yes
+  StrictHostKeyChecking accept-new
+```
+
 ## Installation
 
 ```bash
