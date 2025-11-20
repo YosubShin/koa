@@ -20,6 +20,7 @@ BACKEND_SPECIFIC_KEYS: set[str] = {
     "project_name",
     "remote_root",
     "local_root",
+    "default_account",
     "default_partition",
     "cuda_minor_version",
     "dashboard_base_url",
@@ -42,6 +43,7 @@ class Config:
     remote_results_dir: Path = Path("~/koa-cli/projects/default/jobs")
     local_results_dir: Path = Path("./results/projects/default/jobs")
     shared_env_dir: Path = Path("~/koa-cli/projects/default/envs/uv")
+    default_account: Optional[str] = None
     default_partition: Optional[str] = None
     cuda_minor_version: str = DEFAULT_CUDA_MINOR_VERSION
     env_watch_files: List[str] = field(default_factory=list)
@@ -179,6 +181,7 @@ def load_config(
         "identity_file": os.getenv("KOA_IDENTITY_FILE"),
         "remote_root": os.getenv("KOA_REMOTE_ROOT"),
         "local_root": os.getenv("KOA_LOCAL_ROOT"),
+        "default_account": os.getenv("KOA_ACCOUNT"),
         "default_partition": os.getenv("KOA_DEFAULT_PARTITION"),
         "cuda_minor_version": os.getenv("KOA_CUDA_VERSION")
         or os.getenv("KOA_CUDA_MINOR_VERSION"),
@@ -269,6 +272,7 @@ def load_config(
         remote_results_dir=remote_jobs_root,
         local_results_dir=local_jobs_root,
         shared_env_dir=remote_env_dir,
+        default_account=merged_backend.get("default_account"),
         default_partition=merged_backend.get("default_partition"),
         cuda_minor_version=merged_backend.get("cuda_minor_version")
         or DEFAULT_CUDA_MINOR_VERSION,

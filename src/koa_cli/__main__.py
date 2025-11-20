@@ -140,6 +140,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Top-level local workspace directory for KOA project mirrors.",
     )
     setup_parser.add_argument(
+        "--default-account",
+        help="Default Slurm account for submissions (optional).",
+    )
+    setup_parser.add_argument(
         "--default-partition",
         help="Default Slurm partition for submissions (e.g. kill-shared).",
     )
@@ -356,6 +360,19 @@ def _setup(args: argparse.Namespace) -> int:
         required=True,
     )
 
+    suggested_default_account = (
+        args.default_account
+        or backend_defaults.get("default_account")
+        or existing.get("default_account")
+        or ""
+    )
+    default_account = _prompt(
+        args.default_account,
+        "Default Slurm account (optional)",
+        default=suggested_default_account,
+        required=False,
+    )
+
     default_partition_value = (
         args.default_partition
         or backend_defaults.get("default_partition")
@@ -431,6 +448,10 @@ def _setup(args: argparse.Namespace) -> int:
     backend_entry["remote_root"] = remote_root
     backend_entry["local_root"] = local_root
     backend_entry["cuda_minor_version"] = cuda_minor_version
+    if default_account:
+        backend_entry["default_account"] = default_account
+    else:
+        backend_entry.pop("default_account", None)
     if default_partition:
         backend_entry["default_partition"] = default_partition
     else:
@@ -464,6 +485,8 @@ def _setup(args: argparse.Namespace) -> int:
     print(f"  User: {user}@{host}")
     print(f"  Remote workspace: {remote_root}")
     print(f"  Local workspace: {local_root}")
+    if default_account:
+        print(f"  Default account: {default_account}")
     if default_partition:
         print(f"  Default partition: {default_partition}")
     if dashboard_base_url:
@@ -626,6 +649,8 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         sbatch_args.extend(["--mem", args.memory])
     if args.account:
         sbatch_args.extend(["--account", args.account])
+    elif config.default_account:
+        sbatch_args.extend(["--account", config.default_account])
     if args.qos:
         sbatch_args.extend(["--qos", args.qos])
     sbatch_args.extend(args.sbatch_arg or [])
