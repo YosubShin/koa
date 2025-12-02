@@ -22,6 +22,7 @@ BACKEND_SPECIFIC_KEYS: set[str] = {
     "local_root",
     "default_account",
     "default_partition",
+    "default_constraint",
     "cuda_minor_version",
     "dashboard_base_url",
     "env_pass",
@@ -46,6 +47,7 @@ class Config:
     shared_env_dir: Path = Path("~/koa-cli/projects/default/envs/uv")
     default_account: Optional[str] = None
     default_partition: Optional[str] = None
+    default_constraint: Optional[str] = None
     cuda_minor_version: str = DEFAULT_CUDA_MINOR_VERSION
     env_watch_files: List[str] = field(default_factory=list)
     snapshot_excludes: List[str] = field(default_factory=list)
@@ -185,6 +187,7 @@ def load_config(
         "local_root": os.getenv("KOA_LOCAL_ROOT"),
         "default_account": os.getenv("KOA_ACCOUNT"),
         "default_partition": os.getenv("KOA_DEFAULT_PARTITION"),
+        "default_constraint": os.getenv("KOA_DEFAULT_CONSTRAINT"),
         "cuda_minor_version": os.getenv("KOA_CUDA_VERSION")
         or os.getenv("KOA_CUDA_MINOR_VERSION"),
         "env_watch": os.getenv("KOA_ENV_WATCH"),
@@ -283,6 +286,7 @@ def load_config(
         shared_env_dir=remote_env_dir,
         default_account=merged_backend.get("default_account"),
         default_partition=merged_backend.get("default_partition"),
+        default_constraint=merged_backend.get("default_constraint"),
         cuda_minor_version=merged_backend.get("cuda_minor_version")
         or DEFAULT_CUDA_MINOR_VERSION,
         env_watch_files=env_watch_files,

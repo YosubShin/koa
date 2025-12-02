@@ -81,6 +81,17 @@ DEFAULT_ENV_WATCH = [
 ]
 
 
+def _has_constraint_flag(args: list[str]) -> bool:
+    for arg in args:
+        if arg in {"--constraint", "-C"}:
+            return True
+        if arg.startswith("--constraint="):
+            return True
+        if arg.startswith("-C") and arg != "-C":
+            return True
+    return False
+
+
 def _has_export_flag(args: list[str]) -> bool:
     for arg in args:
         if arg == "--export":
@@ -201,6 +212,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Default Slurm partition for submissions (e.g. kill-shared).",
     )
     setup_parser.add_argument(
+        "--default-constraint",
+        default=None,
+        help='Default Slurm constraint to apply (e.g. hopper). Leave empty to disable.',
+    )
+    setup_parser.add_argument(
         "--backend",
         default=None,
         help="Name of the backend entry to configure (default: koa).",
@@ -272,6 +288,10 @@ def _build_parser() -> argparse.ArgumentParser:
     submit_parser.add_argument(
         "--partition",
         help="Slurm partition (queue) to submit to. Defaults to kill-shared.",
+    )
+    submit_parser.add_argument(
+        "--constraint",
+        help="Slurm constraint to apply (e.g. hopper).",
     )
     submit_parser.add_argument("--time", help="Walltime request (e.g. 02:00:00).")
     submit_parser.add_argument("--gpus", type=int, help="Number of GPUs to request.")
@@ -445,6 +465,19 @@ def _setup(args: argparse.Namespace) -> int:
         required=False,
     )
 
+    default_constraint_value = (
+        args.default_constraint
+        or backend_defaults.get("default_constraint")
+        or existing.get("default_constraint")
+        or ""
+    )
+    default_constraint = _prompt(
+        args.default_constraint,
+        "Default Slurm constraint (optional, e.g. hopper)",
+        default=default_constraint_value,
+        required=False,
+    )
+
     suggested_dashboard_base = (
         args.dashboard_base_url
         or backend_defaults.get("dashboard_base_url")
@@ -515,6 +548,10 @@ def _setup(args: argparse.Namespace) -> int:
         backend_entry["default_partition"] = default_partition
     else:
         backend_entry.pop("default_partition", None)
+    if default_constraint:
+        backend_entry["default_constraint"] = default_constraint
+    else:
+        backend_entry.pop("default_constraint", None)
     if dashboard_base_url:
         backend_entry["dashboard_base_url"] = dashboard_base_url
     else:
@@ -548,6 +585,8 @@ def _setup(args: argparse.Namespace) -> int:
         print(f"  Default account: {default_account}")
     if default_partition:
         print(f"  Default partition: {default_partition}")
+    if default_constraint:
+        print(f"  Default constraint: {default_constraint}")
     if dashboard_base_url:
         print(f"  Web dashboard: {dashboard_base_url}")
     print(f"  CUDA minor version: {cuda_minor_version}")
@@ -572,11 +611,16 @@ def _render_setup_env_script(cuda_minor_version: Optional[str]) -> str:
 def _render_basic_job_template(
     project_name: str,
     default_partition: str,
+    default_constraint: Optional[str],
 ) -> str:
     template = _load_template("basic_job.slurm.tmpl")
+    constraint_line = (
+        f'#SBATCH --constraint="{default_constraint}"' if default_constraint else ""
+    )
     return (
         template.replace("__JOB_NAME__", project_name)
         .replace("__DEFAULT_PARTITION__", default_partition)
+        .replace("__DEFAULT_CONSTRAINT__", constraint_line)
     )
 
 
@@ -632,6 +676,11 @@ def _init_project(args: argparse.Namespace) -> int:
         or data.get("default_partition")
         or "kill-shared"
     )
+    default_constraint = (
+        backend_entry.get("default_constraint")
+        or data.get("default_constraint")
+        or ""
+    )
 
     override_cuda_minor = args.cuda_version.strip() if args.cuda_version else None
     backend_cuda_minor = (
@@ -666,7 +715,7 @@ def _init_project(args: argparse.Namespace) -> int:
 
     _write_file(
         scripts_dir / "basic_job.slurm",
-        _render_basic_job_template(project_name, default_partition),
+        _render_basic_job_template(project_name, default_partition, default_constraint),
         overwrite=args.force,
         executable=True,
     )
@@ -698,6 +747,8 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
     sbatch_args: list[str] = []
     if args.partition:
         sbatch_args.extend(["--partition", args.partition])
+    if args.constraint:
+        sbatch_args.extend(["--constraint", args.constraint])
     if args.time:
         sbatch_args.extend(["--time", args.time])
     if args.gpus:
@@ -713,6 +764,9 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
     if args.qos:
         sbatch_args.extend(["--qos", args.qos])
     sbatch_args.extend(args.sbatch_arg or [])
+
+    if (not args.constraint) and config.default_constraint and not _has_constraint_flag(sbatch_args):
+        sbatch_args.extend(["--constraint", config.default_constraint])
 
     try:
         export_envs, missing_config_envs = _collect_export_envs(
