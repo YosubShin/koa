@@ -88,6 +88,11 @@ env_watch:
   - scripts/setup_env.sh
   - requirements.txt
   - pyproject.toml
+
+# Always forward these env vars when submitting (if set locally)
+env_pass:
+  - MODEL_NAME
+  - DATA_ROOT
 ```
 Add optional `snapshot_excludes:` if you want to skip additional files or directories during submission snapshots (e.g., raw datasets or build artifacts).
 
@@ -111,6 +116,9 @@ koa check
 koa submit scripts/basic_job.slurm --time 01:00:00 --desc "baseline"
 # every submission writes a repo snapshot + run metadata under <local results>/<job-id>/
   # run_metadata/ includes env_hashes.json for watched setup files
+# forward local env into the job (NAME pulls from your shell; NAME=val sets explicitly)
+MODEL_NAME=qwen3-vl-4b-instruct koa submit scripts/basic_job.slurm --env MODEL_NAME
+koa submit scripts/basic_job.slurm --env MODEL_NAME=qwen3-vl-4b-instruct --env DATA_ROOT=/data/run123
 
 # 3. Monitor jobs and inspect runs
 koa jobs
@@ -131,7 +139,7 @@ Every submitted job includes a `run_metadata/` folder under its results director
 - `init` – scaffold project config and helper scripts using global defaults.
 - `jobs` – list your queued and running jobs via `squeue`.
 - `dashboard` – open the Streamlit dashboard with job history, logs, and GPU node views.
-- `submit` – copy a script and call `sbatch`; use `--sbatch-arg` for raw overrides. Add flags like `--gpus` (generic count) or `--desc` to control resources and the timestamped results folder name.
+- `submit` – copy a script and call `sbatch`; use `--sbatch-arg` for raw overrides. Add flags like `--gpus` (generic count) or `--desc` to control resources and the timestamped results folder name. Forward env vars with `--env NAME` or `--env NAME=value`, and set defaults in `env_pass` within `koa-config.yaml`.
 - `cancel` – stop a job by ID with `scancel`.
 - `logs` – stream or inspect a job's stdout/stderr in real time via `tail` (stored at `<remote results dir>/<job-id>/job.log` and `job.err`).
 - `runs` – sync and inspect the local catalog of submitted jobs.

@@ -81,6 +81,59 @@ DEFAULT_ENV_WATCH = [
 ]
 
 
+def _has_export_flag(args: list[str]) -> bool:
+    for arg in args:
+        if arg == "--export":
+            return True
+        if arg.startswith("--export="):
+            return True
+    return False
+
+
+def _collect_export_envs(
+    cli_env_flags: list[str],
+    config_env_pass: list[str],
+) -> tuple[list[str], list[str]]:
+    """
+    Build a list of KEY=VALUE entries to export into the submitted job.
+
+    Returns a tuple of (assignments, missing_from_config) where the latter tracks config-provided
+    variables that were skipped because they are not set locally.
+    """
+    exports: dict[str, str] = {}
+    missing_from_config: list[str] = []
+
+    def _handle_entry(entry: str, *, allow_missing: bool) -> None:
+        raw = entry.strip()
+        if not raw:
+            return
+        if "=" in raw:
+            key, value = raw.split("=", 1)
+            key = key.strip()
+            if not key:
+                raise ValueError(f"Invalid --env entry (missing key): {entry}")
+            exports[key] = value
+            return
+        key = raw
+        if key in os.environ:
+            exports[key] = os.environ[key]
+        elif allow_missing:
+            missing_from_config.append(key)
+        else:
+            raise ValueError(
+                f"--env {key} was requested but it is not set in your local environment."
+            )
+
+    for item in config_env_pass:
+        _handle_entry(item, allow_missing=True)
+
+    for item in cli_env_flags:
+        _handle_entry(item, allow_missing=False)
+
+    assignments = [f"{key}={value}" for key, value in exports.items()]
+    return assignments, missing_from_config
+
+
 def _load_template(name: str) -> str:
     """Load a text template bundled with the CLI."""
     try:
@@ -229,6 +282,12 @@ def _build_parser() -> argparse.ArgumentParser:
     submit_parser.add_argument(
         "--desc",
         help="Optional description appended to the timestamped run directory name.",
+    )
+    submit_parser.add_argument(
+        "--env",
+        action="append",
+        default=[],
+        help="Forward an environment variable into the job (NAME or NAME=value). Repeatable.",
     )
     submit_parser.add_argument(
         "--sbatch-arg",
@@ -654,6 +713,29 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
     if args.qos:
         sbatch_args.extend(["--qos", args.qos])
     sbatch_args.extend(args.sbatch_arg or [])
+
+    try:
+        export_envs, missing_config_envs = _collect_export_envs(
+            args.env or [],
+            config.env_pass or [],
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if export_envs:
+        if _has_export_flag(sbatch_args):
+            print(
+                "Cannot combine --env/env_pass with a manually provided --export sbatch argument.",
+                file=sys.stderr,
+            )
+            return 1
+        sbatch_args.append("--export=" + ",".join(["ALL", *export_envs]))
+    if missing_config_envs:
+        missing_list = ", ".join(missing_config_envs)
+        print(
+            f"Warning: skipped env_pass variables not set locally: {missing_list}",
+            file=sys.stderr,
+        )
 
     with tempfile.TemporaryDirectory(prefix="koa-submit-") as tmpdir:
         tmp_path = Path(tmpdir)

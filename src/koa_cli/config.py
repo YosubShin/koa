@@ -24,6 +24,7 @@ BACKEND_SPECIFIC_KEYS: set[str] = {
     "default_partition",
     "cuda_minor_version",
     "dashboard_base_url",
+    "env_pass",
 }
 
 
@@ -49,6 +50,7 @@ class Config:
     env_watch_files: List[str] = field(default_factory=list)
     snapshot_excludes: List[str] = field(default_factory=list)
     dashboard_base_url: Optional[str] = None
+    env_pass: List[str] = field(default_factory=list)
 
     @property
     def login(self) -> str:
@@ -189,12 +191,13 @@ def load_config(
         "snapshot_excludes": os.getenv("KOA_SNAPSHOT_EXCLUDES"),
         "proxy_command": os.getenv("KOA_PROXY_COMMAND"),
         "dashboard_base_url": os.getenv("KOA_DASHBOARD_BASE_URL"),
+        "env_pass": os.getenv("KOA_ENV_PASS"),
     }
 
     for key, value in env_overrides.items():
         if value is None:
             continue
-        if key in {"env_watch", "snapshot_excludes"}:
+        if key in {"env_watch", "snapshot_excludes", "env_pass"}:
             data[key] = [item.strip() for item in value.split(",") if item.strip()]
         else:
             merged_backend[key] = value
@@ -257,6 +260,12 @@ def load_config(
     else:
         snapshot_excludes = list(snapshot_excludes_raw)
 
+    env_pass_raw = merged_backend.get("env_pass") or data.get("env_pass") or []
+    if isinstance(env_pass_raw, str):
+        env_pass = [item.strip() for item in env_pass_raw.split(",") if item.strip()]
+    else:
+        env_pass = [str(item).strip() for item in env_pass_raw if str(item).strip()]
+
     return Config(
         cluster_name=merged_backend.get("cluster_name", resolved_backend_name),
         user=merged_backend["user"],
@@ -279,4 +288,5 @@ def load_config(
         env_watch_files=env_watch_files,
         snapshot_excludes=snapshot_excludes,
         dashboard_base_url=merged_backend.get("dashboard_base_url"),
+        env_pass=env_pass,
     )
