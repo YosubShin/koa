@@ -23,6 +23,7 @@ BACKEND_SPECIFIC_KEYS: set[str] = {
     "default_account",
     "default_partition",
     "default_constraint",
+    "default_gres",
     "cuda_minor_version",
     "dashboard_base_url",
     "env_pass",
@@ -48,6 +49,7 @@ class Config:
     default_account: Optional[str] = None
     default_partition: Optional[str] = None
     default_constraint: Optional[str] = None
+    default_gres: Optional[str] = None
     cuda_minor_version: str = DEFAULT_CUDA_MINOR_VERSION
     env_watch_files: List[str] = field(default_factory=list)
     snapshot_excludes: List[str] = field(default_factory=list)
@@ -188,6 +190,7 @@ def load_config(
         "default_account": os.getenv("KOA_ACCOUNT"),
         "default_partition": os.getenv("KOA_DEFAULT_PARTITION"),
         "default_constraint": os.getenv("KOA_DEFAULT_CONSTRAINT"),
+        "default_gres": os.getenv("KOA_DEFAULT_GRES"),
         "cuda_minor_version": os.getenv("KOA_CUDA_VERSION")
         or os.getenv("KOA_CUDA_MINOR_VERSION"),
         "env_watch": os.getenv("KOA_ENV_WATCH"),
@@ -287,6 +290,7 @@ def load_config(
         default_account=merged_backend.get("default_account"),
         default_partition=merged_backend.get("default_partition"),
         default_constraint=merged_backend.get("default_constraint"),
+        default_gres=merged_backend.get("default_gres"),
         cuda_minor_version=merged_backend.get("cuda_minor_version")
         or DEFAULT_CUDA_MINOR_VERSION,
         env_watch_files=env_watch_files,

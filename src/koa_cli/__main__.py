@@ -101,6 +101,15 @@ def _has_export_flag(args: list[str]) -> bool:
     return False
 
 
+def _has_gres_flag(args: list[str]) -> bool:
+    for arg in args:
+        if arg == "--gres":
+            return True
+        if arg.startswith("--gres="):
+            return True
+    return False
+
+
 def _collect_export_envs(
     cli_env_flags: list[str],
     config_env_pass: list[str],
@@ -215,6 +224,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--default-constraint",
         default=None,
         help='Default Slurm constraint to apply (e.g. hopper). Leave empty to disable.',
+    )
+    setup_parser.add_argument(
+        "--default-gres",
+        default=None,
+        help='Default Slurm GRES string to apply (e.g. "gpu:a100:1"). Leave empty to disable.',
     )
     setup_parser.add_argument(
         "--backend",
@@ -478,6 +492,19 @@ def _setup(args: argparse.Namespace) -> int:
         required=False,
     )
 
+    suggested_default_gres = (
+        args.default_gres
+        or backend_defaults.get("default_gres")
+        or existing.get("default_gres")
+        or ""
+    )
+    default_gres = _prompt(
+        args.default_gres,
+        'Default Slurm GRES (optional, e.g. gpu:a100:1)',
+        default=suggested_default_gres,
+        required=False,
+    )
+
     suggested_dashboard_base = (
         args.dashboard_base_url
         or backend_defaults.get("dashboard_base_url")
@@ -552,6 +579,10 @@ def _setup(args: argparse.Namespace) -> int:
         backend_entry["default_constraint"] = default_constraint
     else:
         backend_entry.pop("default_constraint", None)
+    if default_gres:
+        backend_entry["default_gres"] = default_gres
+    else:
+        backend_entry.pop("default_gres", None)
     if dashboard_base_url:
         backend_entry["dashboard_base_url"] = dashboard_base_url
     else:
@@ -587,6 +618,8 @@ def _setup(args: argparse.Namespace) -> int:
         print(f"  Default partition: {default_partition}")
     if default_constraint:
         print(f"  Default constraint: {default_constraint}")
+    if default_gres:
+        print(f"  Default GRES: {default_gres}")
     if dashboard_base_url:
         print(f"  Web dashboard: {dashboard_base_url}")
     print(f"  CUDA minor version: {cuda_minor_version}")
@@ -767,6 +800,8 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
 
     if (not args.constraint) and config.default_constraint and not _has_constraint_flag(sbatch_args):
         sbatch_args.extend(["--constraint", config.default_constraint])
+    if config.default_gres and not _has_gres_flag(sbatch_args):
+        sbatch_args.append(f"--gres={config.default_gres}")
 
     try:
         export_envs, missing_config_envs = _collect_export_envs(

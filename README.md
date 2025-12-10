@@ -69,6 +69,7 @@ The CLI installs the entry point `koa`.
 1. Run `koa setup` (once per machine) to capture your KOA username, host, and the global workspace roots on KOA and locally. The global config lives at `~/.config/koa/config.yaml`.
    - The global config now supports multiple Slurm backends via a top-level `backends:` list. Each entry records the connection + workspace settings for a `cluster_name` (e.g. `koa` or `delta`). `koa setup` targets the default `koa` backend; pass `--backend delta` to add or update another cluster.
    - Use `--default-constraint hopper` (or leave blank) to set per-cluster Slurm constraints; this keeps KOA on `hopper` nodes while clusters like Delta can omit constraints entirely.
+   - Use `--default-gres gpu:a100:1` (or similar) if you want a default `--gres` line added to submissions for a backend.
    - Use `--cuda-version 12.4` (or leave blank for 12.8) to set the CUDA Toolkit minor version that should be installed automatically for that backend.
    - Provide `--dashboard-base-url https://<ondemand-host>/pun/sys/dashboard/files/fs` if you want web links in the dashboard to jump straight into your OnDemand file browser.
 2. Inside each repository, run `koa init` to generate a minimal `koa-config.yaml` plus helper scripts. Use `--cuda-version` if this project needs a different CUDA Toolkit minor version from the backend default.
@@ -95,6 +96,35 @@ env_pass:
   - MODEL_NAME
   - DATA_ROOT
 ```
+
+### Sample multi-backend ~/.config/koa/config.yaml
+
+```yaml
+default_backend: koa
+
+backends:
+  - cluster_name: koa
+    user: yosubs
+    host: koa.its.hawaii.edu
+    remote_root: /mnt/lustre/koa/scratch/yosubs/koa-cli
+    local_root: ~/koa-projects
+    default_partition: kill-shared
+    default_constraint: hopper
+    default_gres: gpu:a100:1
+    cuda_minor_version: 12.8
+
+  - cluster_name: delta
+    user: yosubs
+    host: login.delta.ncsa.illinois.edu
+    remote_root: /projects/yosubs/koa-cli
+    local_root: ~/delta-projects
+    default_partition: gpuA100x4  # leave blank if cluster picks a default
+    default_constraint: ""        # unset to avoid hopper-only behavior
+    default_gres: gpu:a100:1
+    cuda_minor_version: 12.4
+```
+
+Run `koa setup --backend delta` to add or update the `delta` block; omit flags to keep existing values. Use `--backend <name>` on commands (or `KOA_BACKEND`) to pick the cluster when submitting.
 Set per-cluster constraints by adding `default_constraint: hopper` under the relevant backend in `~/.config/koa/config.yaml` (leave it unset for clusters that don't need a constraint). Project-level `koa-config.yaml` can override or clear it if needed.
 Add optional `snapshot_excludes:` if you want to skip additional files or directories during submission snapshots (e.g., raw datasets or build artifacts).
 
