@@ -135,51 +135,43 @@ def load_config(
         with project_config_path.open("r", encoding="utf-8") as fh:
             project_data = yaml.safe_load(fh) or {}
 
-    def _merge_dicts(base: dict, override: dict) -> dict:
-        merged = dict(base)
-        for key, value in override.items():
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                merged[key] = _merge_dicts(merged[key], value)
-            else:
-                merged[key] = value
-        return merged
-
-    data = _merge_dicts(global_data, project_data)
+    def _find_backend_entry(source: dict, name: str) -> dict:
+        entries = source.get("backends")
+        if isinstance(entries, list):
+            for entry in entries:
+                if entry.get("cluster_name") == name:
+                    return dict(entry)
+        return {}
 
     resolved_backend_name = (
         backend_name
         or os.getenv("KOA_BACKEND")
-        or data.get("default_backend")
+        or project_data.get("default_backend")
+        or global_data.get("default_backend")
         or DEFAULT_BACKEND_NAME
     )
 
-    backends_section = data.get("backends")
-    backend_candidate: dict = {}
-    if isinstance(backends_section, list) and backends_section:
-        for entry in backends_section:
-            if entry.get("cluster_name") == resolved_backend_name:
-                backend_candidate = dict(entry)
-                break
-        else:
-            available = [str(entry.get("cluster_name", "")) for entry in backends_section]
-            raise ValueError(
-                f"Backend '{resolved_backend_name}' not configured. Available backends: {', '.join(available)}"
-            )
-    else:
+    backend_candidate = _find_backend_entry(global_data, resolved_backend_name)
+    if not backend_candidate:
         backend_candidate = {
-            key: value for key, value in data.items() if key in BACKEND_SPECIFIC_KEYS
+            key: global_data.get(key)
+            for key in BACKEND_SPECIFIC_KEYS
+            if global_data.get(key) is not None
         }
-        backend_candidate.setdefault("cluster_name", resolved_backend_name)
+        if backend_candidate and "cluster_name" not in backend_candidate:
+            backend_candidate["cluster_name"] = resolved_backend_name
 
-    # Project-level overrides take precedence over backend defaults.
+    project_backend_override = _find_backend_entry(project_data, resolved_backend_name)
+
     merged_backend: dict = dict(backend_candidate)
     merged_backend.setdefault("cluster_name", resolved_backend_name)
     merged_backend.setdefault("cuda_minor_version", DEFAULT_CUDA_MINOR_VERSION)
+    merged_backend.update(project_backend_override)
     for key in BACKEND_SPECIFIC_KEYS:
         if key == "cluster_name":
             continue
-        if key in data and data[key] is not None:
-            merged_backend[key] = data[key]
+        if key in project_data and project_data[key] is not None:
+            merged_backend[key] = project_data[key]
 
     env_overrides = {
         "user": os.getenv("KOA_USER"),
@@ -204,7 +196,7 @@ def load_config(
         if value is None:
             continue
         if key in {"env_watch", "snapshot_excludes", "env_pass"}:
-            data[key] = [item.strip() for item in value.split(",") if item.strip()]
+            project_data[key] = [item.strip() for item in value.split(",") if item.strip()]
         else:
             merged_backend[key] = value
 
@@ -224,7 +216,11 @@ def load_config(
 
     config_dir = project_config_path.parent if project_config_path else Path.cwd()
 
-    project_name = merged_backend.get("project_name") or data.get("project")
+    project_name = (
+        merged_backend.get("project_name")
+        or project_data.get("project")
+        or global_data.get("project")
+    )
     if not project_name:
         if project_config_path and project_config_path.parent != DEFAULT_CONFIG_PATH.parent:
             project_name = project_config_path.parent.name
@@ -232,14 +228,16 @@ def load_config(
             project_name = "default"
 
     remote_root_value = merged_backend.get("remote_root") or (
-        (data.get("remote") or {}).get("root")
+        (project_data.get("remote") or {}).get("root")
+        or (global_data.get("remote") or {}).get("root")
     )
     if not remote_root_value:
         raise ValueError("remote_root is not configured. Run `koa setup` or set remote_root in your global config.")
     remote_root = Path(remote_root_value).expanduser()
 
     local_root_value = merged_backend.get("local_root") or (
-        (data.get("local") or {}).get("root")
+        (project_data.get("local") or {}).get("root")
+        or (global_data.get("local") or {}).get("root")
     )
     if local_root_value:
         local_root = Path(local_root_value).expanduser()
@@ -254,19 +252,30 @@ def load_config(
     local_project_root = (local_root / "projects" / project_name).resolve()
     local_jobs_root = local_project_root / "jobs"
 
-    env_watch_raw = data.get("env_watch") or data.get("env_watch_files") or []
+    env_watch_raw = (
+        project_data.get("env_watch")
+        or project_data.get("env_watch_files")
+        or global_data.get("env_watch")
+        or global_data.get("env_watch_files")
+        or []
+    )
     if isinstance(env_watch_raw, str):
         env_watch_files = [env_watch_raw]
     else:
         env_watch_files = list(env_watch_raw)
 
-    snapshot_excludes_raw = data.get("snapshot_excludes") or []
+    snapshot_excludes_raw = project_data.get("snapshot_excludes") or global_data.get("snapshot_excludes") or []
     if isinstance(snapshot_excludes_raw, str):
         snapshot_excludes = [snapshot_excludes_raw]
     else:
         snapshot_excludes = list(snapshot_excludes_raw)
 
-    env_pass_raw = merged_backend.get("env_pass") or data.get("env_pass") or []
+    env_pass_raw = (
+        merged_backend.get("env_pass")
+        or project_data.get("env_pass")
+        or global_data.get("env_pass")
+        or []
+    )
     if isinstance(env_pass_raw, str):
         env_pass = [item.strip() for item in env_pass_raw.split(",") if item.strip()]
     else:
