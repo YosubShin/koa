@@ -110,6 +110,28 @@ def _has_gres_flag(args: list[str]) -> bool:
     return False
 
 
+def _sbatch_args_from_script(path: Path) -> list[str]:
+    """Extract sbatch args declared via '#SBATCH' lines in the script."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception:
+        return []
+
+    collected: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped.startswith("#SBATCH"):
+            continue
+        remainder = stripped[len("#SBATCH") :].strip()
+        if not remainder:
+            continue
+        try:
+            collected.extend(shlex.split(remainder))
+        except ValueError:
+            continue
+    return collected
+
+
 def _collect_export_envs(
     cli_env_flags: list[str],
     config_env_pass: list[str],
@@ -777,6 +799,8 @@ def _create_repo_snapshot(source: Path, destination: Path, extra_excludes: Optio
     shutil.copytree(source, destination, ignore=ignore)
 
 def _submit(args: argparse.Namespace, config: Config) -> int:
+    script_sbatch_args = _sbatch_args_from_script(Path(args.job_script))
+
     sbatch_args: list[str] = []
     if args.partition:
         sbatch_args.extend(["--partition", args.partition])
@@ -798,9 +822,18 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         sbatch_args.extend(["--qos", args.qos])
     sbatch_args.extend(args.sbatch_arg or [])
 
-    if (not args.constraint) and config.default_constraint and not _has_constraint_flag(sbatch_args):
+    if (
+        (not args.constraint)
+        and config.default_constraint
+        and not _has_constraint_flag(sbatch_args)
+        and not _has_constraint_flag(script_sbatch_args)
+    ):
         sbatch_args.extend(["--constraint", config.default_constraint])
-    if config.default_gres and not _has_gres_flag(sbatch_args):
+    if (
+        config.default_gres
+        and not _has_gres_flag(sbatch_args)
+        and not _has_gres_flag(script_sbatch_args)
+    ):
         sbatch_args.append(f"--gres={config.default_gres}")
 
     try:
@@ -882,6 +915,7 @@ def _submit(args: argparse.Namespace, config: Config) -> int:
         config,
         args.job_script,
         sbatch_args=sbatch_args,
+        script_sbatch_args=script_sbatch_args,
         remote_name=args.remote_name,
         run_dir=remote_job_dir,
         job_desc=args.desc,

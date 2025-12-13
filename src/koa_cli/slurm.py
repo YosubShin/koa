@@ -60,6 +60,7 @@ def submit_job(
     local_job_script: Path,
     *,
     sbatch_args: Optional[Iterable[str]] = None,
+    script_sbatch_args: Optional[Iterable[str]] = None,
     remote_name: Optional[str] = None,
     run_dir: Optional[Path] = None,
     job_desc: Optional[str] = None,
@@ -97,9 +98,10 @@ def submit_job(
 
     args = ["env", *env_vars, "sbatch"]
     sbatch_args_list = list(sbatch_args or [])
+    script_sbatch_args_list = list(script_sbatch_args or [])
 
     default_partition = config.default_partition or DEFAULT_PARTITION
-    if not _has_partition_flag(sbatch_args_list):
+    if not _has_partition_flag(sbatch_args_list) and not _has_partition_flag(script_sbatch_args_list):
         args.extend(["--partition", default_partition])
 
     if run_dir_str:
