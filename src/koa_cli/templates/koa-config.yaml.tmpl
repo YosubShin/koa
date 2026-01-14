@@ -7,6 +7,8 @@ cuda_minor_version: __CUDA_MINOR_VERSION__
 env_watch:
 __ENV_WATCH__
 
-# Add snapshot_excludes if you want to skip directories during submissions
+# Add snapshot_excludes if you want to skip paths during submissions.
+# Basename-only patterns match anywhere; patterns with "/" match repo-relative paths.
+# Prefix with "./" or "/" to target only the repo root.
 # snapshot_excludes:
 #   - data/raw

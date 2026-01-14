@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import importlib.resources as resources
 import json
 import os
@@ -789,14 +790,54 @@ def _init_project(args: argparse.Namespace) -> int:
     return 0
 
 
+def _snapshot_ignore(
+    root: Path,
+    patterns: list[str],
+):
+    normalized_patterns: list[tuple[str, bool]] = []
+    for pattern in patterns:
+        if not pattern:
+            continue
+        raw = pattern.strip().replace("\\", "/")
+        path_only = raw.startswith("./") or raw.startswith("/")
+        cleaned = raw.removeprefix("./").lstrip("/")
+        cleaned = cleaned.rstrip("/")
+        if not cleaned:
+            continue
+        normalized_patterns.append((cleaned, path_only or "/" in cleaned))
+
+    def _ignore(current_dir: str, names: list[str]) -> set[str]:
+        ignored: set[str] = set()
+        try:
+            rel_root = Path(current_dir).resolve().relative_to(root)
+        except Exception:
+            rel_root = Path(".")
+        rel_root_posix = rel_root.as_posix().lstrip("./")
+        for name in names:
+            rel_path = name
+            if rel_root_posix and rel_root_posix != ".":
+                rel_path = f"{rel_root_posix}/{name}"
+            for cleaned, has_sep in normalized_patterns:
+                if has_sep:
+                    if fnmatch.fnmatch(rel_path, cleaned):
+                        ignored.add(name)
+                        break
+                else:
+                    if fnmatch.fnmatch(name, cleaned):
+                        ignored.add(name)
+                        break
+        return ignored
+
+    return _ignore
+
+
 def _create_repo_snapshot(source: Path, destination: Path, extra_excludes: Optional[list[str]] = None) -> None:
     if destination.exists():
         shutil.rmtree(destination)
     patterns = list(SNAPSHOT_IGNORE_PATTERNS)
     if extra_excludes:
         patterns.extend(extra_excludes)
-    ignore = shutil.ignore_patterns(*patterns)
-    shutil.copytree(source, destination, ignore=ignore)
+    shutil.copytree(source, destination, ignore=_snapshot_ignore(source, patterns))
 
 def _submit(args: argparse.Namespace, config: Config) -> int:
     script_sbatch_args = _sbatch_args_from_script(Path(args.job_script))

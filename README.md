@@ -126,7 +126,7 @@ backends:
 
 Run `koa setup --backend delta` to add or update the `delta` block; omit flags to keep existing values. Use `--backend <name>` on commands (or `KOA_BACKEND`) to pick the cluster when submitting.
 Set per-cluster constraints by adding `default_constraint: hopper` under the relevant backend in `~/.config/koa/config.yaml` (leave it unset for clusters that don't need a constraint). Project-level `koa-config.yaml` can override or clear it if needed.
-Add optional `snapshot_excludes:` if you want to skip additional files or directories during submission snapshots (e.g., raw datasets or build artifacts).
+Add optional `snapshot_excludes:` if you want to skip additional files or directories during submission snapshots (e.g., raw datasets or build artifacts). Patterns without a slash match any basename (`data` matches every `data/` folder). Patterns with a slash match repo-relative paths (`data/hf` matches only that path). Prefix a basename with `./` or `/` to target only the repo root (`./data` excludes the top-level `data/` only).
 
 
 
