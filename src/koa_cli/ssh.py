@@ -13,6 +13,18 @@ class SSHError(RuntimeError):
     """Raised when an SSH command returns a non-zero exit status."""
 
 
+def _format_process_output(result: subprocess.CompletedProcess) -> str:
+    stdout = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+    if stdout and stderr:
+        return f"stdout:\n{stdout}\nstderr:\n{stderr}"
+    if stdout:
+        return f"stdout:\n{stdout}"
+    if stderr:
+        return f"stderr:\n{stderr}"
+    return "stdout/stderr: <empty>"
+
+
 def _base_args(config: Config) -> List[str]:
     term_value = os.environ.get("TERM") or "xterm-256color"
     args = ["ssh", "-tt", "-o", f"SetEnv=TERM={term_value}", "-o", "LogLevel=ERROR"]
@@ -67,7 +79,7 @@ def run_ssh(
     if check and result.returncode != 0:
         raise SSHError(
             f"SSH command failed ({result.returncode}): {' '.join(ssh_command)}\n"
-            f"stderr: {result.stderr}"
+            f"{_format_process_output(result)}"
         )
     return result
 
@@ -113,7 +125,7 @@ def copy_to_remote(
     if result.returncode != 0:
         raise SSHError(
             f"rsync upload failed ({result.returncode}): {' '.join(rsync_command)}\n"
-            f"stderr: {result.stderr}"
+            f"{_format_process_output(result)}"
         )
 
 
@@ -139,7 +151,7 @@ def copy_from_remote(
     if result.returncode != 0:
         raise SSHError(
             f"SCP download failed ({result.returncode}): {' '.join(scp_command)}\n"
-            f"stderr: {result.stderr}"
+            f"{_format_process_output(result)}"
         )
 
 
@@ -190,7 +202,7 @@ def sync_directory_to_remote(
     if result.returncode != 0:
         raise SSHError(
             f"rsync failed ({result.returncode}): {' '.join(rsync_command)}\n"
-            f"stderr: {result.stderr}"
+            f"{_format_process_output(result)}"
         )
 
 
@@ -245,5 +257,5 @@ def sync_directory_from_remote(
     if result.returncode != 0:
         raise SSHError(
             f"rsync failed ({result.returncode}): {' '.join(rsync_command)}\n"
-            f"stderr: {result.stderr}"
+            f"{_format_process_output(result)}"
         )
